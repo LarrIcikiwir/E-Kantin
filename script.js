@@ -14,7 +14,7 @@ function $(id) {
 }
 
 // ==========================================
-// LOGIN MANUAL VIA TABEL DATABASE
+// LOGIN & SESSION MANAGEMENT
 // ==========================================
 async function handleLoginSubmit(e) {
   e.preventDefault();
@@ -66,7 +66,7 @@ function logout() {
 }
 
 // ==========================================
-// UPDATE UI SESUAI ROLE
+// UPDATE TAMPILAN SESUAI ROLE
 // ==========================================
 function updateRoleUI(role) {
   currentRole = role;
@@ -106,7 +106,7 @@ function updateRoleUI(role) {
   renderMenu();
 }
 
-// Modal Handlers
+// Modal Control
 function openLoginModal() {
   $('login-modal').classList.remove('hidden');
 }
@@ -116,7 +116,7 @@ function closeLoginModal() {
 }
 
 // ==========================================
-// FETCH & CRUD MENU
+// FETCH & CRUD MENU (DENGAN GAMBAR)
 // ==========================================
 async function fetchProducts() {
   const list = $('menu-list');
@@ -136,7 +136,8 @@ async function fetchProducts() {
     id: item.id,
     canteenId: Number(item.canteen_id),
     name: item.name,
-    price: Number(item.price)
+    price: Number(item.price),
+    imageUrl: item.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80'
   }));
 
   renderMenu();
@@ -145,6 +146,10 @@ async function fetchProducts() {
 async function handleAddProduct(e) {
   e.preventDefault();
 
+  const btnSave = $('btn-save-menu');
+  btnSave.disabled = true;
+  btnSave.innerText = 'Menyimpan...';
+
   let canteenId = parseInt($('canteen-select').value);
   if (currentRole.startsWith('kantin')) {
     canteenId = parseInt(currentRole.replace('kantin', ''));
@@ -152,10 +157,48 @@ async function handleAddProduct(e) {
 
   const name = $('name').value.trim();
   const price = parseInt($('price').value);
+  const fileInput = $('image-file').files[0];
+  const urlInput = $('image-url').value.trim();
 
+  let finalImageUrl = urlInput;
+
+  // 1. Upload File Lokal jika ada file yang dipilih
+  if (fileInput) {
+    const fileExt = fileInput.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `menu/${fileName}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('menu-images')
+      .upload(filePath, fileInput);
+
+    if (uploadError) {
+      alert('Gagal upload gambar: ' + uploadError.message);
+      btnSave.disabled = false;
+      btnSave.innerText = 'Simpan Menu';
+      return;
+    }
+
+    // Ambil URL Publik
+    const { data: publicUrlData } = supabaseClient.storage
+      .from('menu-images')
+      .getPublicUrl(filePath);
+
+    finalImageUrl = publicUrlData.publicUrl;
+  }
+
+  // 2. Simpan Data ke Supabase Database
   const { error } = await supabaseClient
     .from('data_kantin')
-    .insert([{ canteen_id: canteenId, name: name, price: price }]);
+    .insert([{ 
+      canteen_id: canteenId, 
+      name: name, 
+      price: price,
+      image_url: finalImageUrl || null
+    }]);
+
+  btnSave.disabled = false;
+  btnSave.innerText = 'Simpan Menu';
 
   if (error) {
     alert('Gagal menambah menu: ' + error.message);
@@ -217,17 +260,22 @@ function renderMenu() {
   list.innerHTML = '';
   filtered.forEach(item => {
     list.innerHTML += `
-      <div class="card-item bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between gap-3">
-        <div class="space-y-0.5">
-          <h3 class="font-bold text-slate-800 text-sm">${escapeHTML(item.name)}</h3>
-          <p class="text-xs text-emerald-600 font-extrabold">
-            Rp ${item.price.toLocaleString('id-ID')}
-          </p>
+      <div class="card-item bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col justify-between">
+        <div>
+          <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}" class="w-full h-36 object-cover bg-slate-100" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80'">
+          <div class="p-3.5 space-y-1">
+            <h3 class="font-bold text-slate-800 text-sm leading-snug">${escapeHTML(item.name)}</h3>
+            <p class="text-xs text-emerald-600 font-extrabold">
+              Rp ${item.price.toLocaleString('id-ID')}
+            </p>
+          </div>
         </div>
         ${canDelete ? `
-          <button onclick="deleteMenu(${item.id})" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition active:scale-95" title="Hapus Menu">
-            <i class="ri-delete-bin-line text-base"></i>
-          </button>
+          <div class="p-3 pt-0 flex justify-end">
+            <button onclick="deleteMenu(${item.id})" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition active:scale-95" title="Hapus Menu">
+              <i class="ri-delete-bin-line text-base"></i>
+            </button>
+          </div>
         ` : ''}
       </div>
     `;
@@ -240,7 +288,9 @@ function escapeHTML(text) {
   return div.innerHTML;
 }
 
+// ==========================================
 // INISIALISASI
+// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   $('login-form').addEventListener('submit', handleLoginSubmit);$('add-form').addEventListener('submit', handleAddProduct);
   updateTabStyle();
