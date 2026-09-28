@@ -10,6 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  
   <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
@@ -122,6 +125,53 @@
     <div id="menu-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
 
   </main>
+
+  <!-- FLOATING CHAT BUTTON -->
+  <button onclick="toggleChatModal()" class="fixed bottom-5 right-5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white p-3.5 rounded-full shadow-lg shadow-indigo-600/30 transition z-40 flex items-center justify-center relative">
+    <i class="ri-message-3-line text-xl"></i>
+    
+    <!-- Badge Notifikasi Chat -->
+    <span id="chat-badge" class="hidden absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white animate-pulse min-w-[20px] text-center">
+      0
+    </span>
+  </button>
+
+  <!-- MODAL / WIDGET CHAT REALTIME -->
+  <div id="chat-modal" class="fixed bottom-20 right-5 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-40 hidden flex-col overflow-hidden h-[450px]">
+    <!-- Header Chat -->
+    <div class="bg-indigo-600 text-white px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i class="ri-chat-smile-2-line text-lg"></i>
+        <div>
+          <h4 class="text-xs font-bold" id="chat-header-title">Chat Kantin 1</h4>
+          <p class="text-[10px] text-indigo-200">Tanyakan seputar menu & pesanan</p>
+        </div>
+      </div>
+      <button onclick="toggleChatModal()" class="text-indigo-200 hover:text-white transition">
+        <i class="ri-close-line text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Area Pesan -->
+    <div id="chat-messages" class="flex-1 p-3 overflow-y-auto space-y-2.5 text-xs bg-slate-50">
+      <p class="text-slate-400 text-center text-[11px] py-4">Memuat obrolan...</p>
+    </div>
+
+    <!-- Form Kirim Pesan -->
+    <form id="chat-form" onsubmit="sendChatMessage(event)" class="p-2 bg-white border-t border-slate-100 flex gap-2">
+      <input 
+        type="text" 
+        id="chat-input" 
+        placeholder="Tulis pesan..." 
+        oninput="handleTypingInput()" 
+        required 
+        class="flex-1 bg-slate-100 border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      >
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center">
+        <i class="ri-send-plane-fill"></i>
+      </button>
+    </form>
+  </div>
 
   <!-- MODAL LOGIN ADMIN/KANTIN -->
   <div id="login-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
