@@ -86,7 +86,7 @@
     </div>
 
     <!-- TAB FILTER KANTIN (1-6) -->
-    <div class="flex items-center gap-2 overflow-x-auto pb-1" id="kantin-tabs">
+    <div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar" id="kantin-tabs">
       <button onclick="filterKantin(1)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">Kantin 1</button>
       <button onclick="filterKantin(2)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">Kantin 2</button>
       <button onclick="filterKantin(3)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">Kantin 3</button>
@@ -112,8 +112,8 @@
 
       <form id="login-form" class="space-y-3">
         <div>
-          <label class="block text-xs font-bold text-slate-700 mb-1">Email</label>
-          <input type="email" id="login-email" placeholder="admin@kantin.com" required class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <label class="block text-xs font-bold text-slate-700 mb-1">Username / Email</label>
+          <input type="text" id="login-email" placeholder="admin / kantin1" required class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
