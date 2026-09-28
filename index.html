@@ -3,35 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>e-kantin</title>
+  <title>E-Kantin Sekolah</title>
   
   <!-- Tailwind CSS & Google Fonts -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
   
   <!-- Supabase SDK -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased min-h-screen p-4 md:p-8">
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen pb-12">
 
-  <div class="max-w-3xl mx-auto space-y-6">
-    
-    <!-- Header App -->
-    <header class="text-center space-y-2 py-4">
-      <div class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center mx-auto text-xl font-black shadow-lg shadow-indigo-500/30">
-        K
+  <!-- NAVBAR UTAMA -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center text-lg font-black shadow-md shadow-indigo-500/20">
+          K
+        </div>
+        <div>
+          <h1 class="text-base font-extrabold text-slate-900 leading-none">E-Kantin Sekolah</h1>
+          <p class="text-[11px] text-slate-500">Menu Makanan & Minuman</p>
+        </div>
       </div>
-      <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">E-Kantin Sekolah</h1>
-      <p class="text-xs text-slate-500">Kelola menu makanan dan minuman</p>
-    </header>
 
-    <!-- Form Tambah Menu -->
-    <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm">
+      <!-- KANAN ATAS: Status Role & Tombol Login/Logout -->
+      <div class="flex items-center gap-2">
+        <span id="role-badge" class="bg-slate-100 text-slate-600 border border-slate-200 text-xs px-3 py-1.5 rounded-xl font-bold">
+          Mode Guest
+        </span>
+        
+        <button id="btn-login-trigger" onclick="openLoginModal()" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+          <i class="ri-user-settings-line text-sm"></i>
+          <span>Login Admin/Kantin</span>
+        </button>
+
+        <button id="btn-logout" onclick="logout()" class="hidden bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 active:scale-95 px-3.5 py-1.5 rounded-xl text-xs font-bold transition items-center gap-1.5">
+          <i class="ri-logout-box-r-line text-sm"></i>
+          <span>Keluar</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 pt-6 space-y-6">
+
+    <!-- FORM TAMBAH MENU (Sembunyi secara default untuk Guest) -->
+    <div id="add-form-container" class="hidden bg-white p-5 rounded-2xl border border-indigo-100 shadow-md shadow-indigo-500/5">
       <h2 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
         <i class="ri-add-circle-line text-indigo-600 text-lg"></i>
-        <span>Tambah Menu Baru</span>
+        <span id="form-title">Tambah Menu Baru</span>
       </h2>
 
       <form id="add-form" class="grid grid-cols-1 sm:grid-cols-12 gap-3">
@@ -62,7 +85,7 @@
       </form>
     </div>
 
-    <!-- Tab Filter Kantin (1-6) -->
+    <!-- TAB FILTER KANTIN (1-6) -->
     <div class="flex items-center gap-2 overflow-x-auto pb-1" id="kantin-tabs">
       <button onclick="filterKantin(1)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">Kantin 1</button>
       <button onclick="filterKantin(2)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">Kantin 2</button>
@@ -72,9 +95,35 @@
       <button onclick="filterKantin(6)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">Kantin 6</button>
     </div>
 
-    <!-- Daftar Makanan -->
+    <!-- DAFTAR MENU -->
     <div id="menu-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
 
+  </main>
+
+  <!-- MODAL LOGIN ADMIN/KANTIN -->
+  <div id="login-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-slate-100 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-extrabold text-slate-900 text-base">Login Pengelola</h3>
+        <button onclick="closeLoginModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="ri-close-line text-xl"></i>
+        </button>
+      </div>
+
+      <form id="login-form" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Email</label>
+          <input type="email" id="login-email" placeholder="admin@kantin.com" required class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" required class="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+        <button type="submit" id="btn-submit-login" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md shadow-indigo-600/20 transition">
+          Masuk
+        </button>
+      </form>
+    </div>
   </div>
 
   <script src="script.js"></script>
