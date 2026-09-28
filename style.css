@@ -1,8 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 body {
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-/* Custom Scrollbar */
+/* ==========================================
+   1. CUSTOM SCROLLBAR GLOBAL & CHAT
+   ========================================== */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -21,7 +25,37 @@ body {
   background: #94a3b8;
 }
 
-/* Card Item Hover Effect */
+/* Scrollbar khusus area pesan chat */
+#chat-messages::-webkit-scrollbar {
+  width: 5px;
+}
+
+#chat-messages::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+#chat-messages::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Menyembunyikan scrollbar untuk tab filter kantin */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================
+   2. CARD MENU HOVER EFFECT
+   ========================================== */
 .card-item {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -31,12 +65,16 @@ body {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
 }
 
-/* Hide Scrollbar */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* ==========================================
+   3. CHAT BUBBLE & ANIMATIONS
+   ========================================== */
+/* Animasi masuk modal chat */
+#chat-modal {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* Bubble chat pembungkus teks agar kata panjang terpotong rapi */
+.chat-bubble {
+  word-break: break-word;
+  white-space: pre-wrap;
 }
