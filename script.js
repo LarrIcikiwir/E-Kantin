@@ -7,7 +7,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let products = [];
 let activeCanteen = 1;
-let currentRole = 'guest'; // Default Mode Guest
+let currentRole = 'guest';
 
 function $(id) {
   return document.getElementById(id);
@@ -19,18 +19,17 @@ function $(id) {
 async function handleLoginSubmit(e) {
   e.preventDefault();
 
-  const usernameInput = $('login-email').value.trim(); // Bisa diisi username/email
+  const usernameInput = $('login-email').value.trim();
   const passwordInput = $('login-password').value;
   const btn = $('btn-submit-login');
 
   btn.disabled = true;
   btn.innerText = 'Memproses...';
 
-  // 1. Cek data username/email dan password langsung ke tabel data_user
   const { data, error } = await supabaseClient
     .from('data_user')
     .select('*')
-    .eq('username', usernameInput) // Sesuaikan nama kolom jika di DB pakai 'email'
+    .eq('username', usernameInput)
     .eq('password', passwordInput)
     .single();
 
@@ -42,18 +41,15 @@ async function handleLoginSubmit(e) {
     return;
   }
 
-  // 2. Simpan session login sederhana di browser (LocalStorage)
   localStorage.setItem('user_session', JSON.stringify({
     username: data.username,
     role: data.role
   }));
 
-  // 3. Update UI sesuai Role yang didapat dari tabel
   updateRoleUI(data.role);
   closeLoginModal();
 }
 
-// Cek status login saat halaman pertama kali dibuka
 function checkLocalSession() {
   const savedSession = localStorage.getItem('user_session');
   if (savedSession) {
@@ -64,7 +60,6 @@ function checkLocalSession() {
   }
 }
 
-// Logout sederhana
 function logout() {
   localStorage.removeItem('user_session');
   updateRoleUI('guest');
@@ -90,6 +85,7 @@ function updateRoleUI(role) {
   } else {
     btnLogin.classList.add('hidden');
     btnLogout.classList.remove('hidden');
+    btnLogout.classList.add('flex');
     formContainer.classList.remove('hidden');
 
     if (role === 'admin') {
@@ -102,6 +98,8 @@ function updateRoleUI(role) {
       roleBadge.className = 'bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs px-3 py-1.5 rounded-xl font-bold';
       selectCanteen.value = num;
       selectCanteen.disabled = true;
+      activeCanteen = Number(num);
+      updateTabStyle();
     }
   }
 
@@ -242,7 +240,7 @@ function escapeHTML(text) {
   return div.innerHTML;
 }
 
-// INIALISASI
+// INISIALISASI
 document.addEventListener('DOMContentLoaded', () => {
   $('login-form').addEventListener('submit', handleLoginSubmit);$('add-form').addEventListener('submit', handleAddProduct);
   updateTabStyle();
