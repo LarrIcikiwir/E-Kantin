@@ -1,5 +1,5 @@
 // ==========================================
-// KONFIGURASI SUPABASE
+// 1. KONFIGURASI SUPABASE & STATE
 // ==========================================
 const SUPABASE_URL = 'https://ymaqspvidhwgzwrxxbfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl';
@@ -9,12 +9,28 @@ let products = [];
 let activeCanteen = 1;
 let currentRole = 'guest';
 
+// State Chat Realtime
+let unreadCount = 0;
+let chatSubscription = null;
+let typingTimeout = null;
+
+// Audio Notifikasi Pesan
+const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+notificationSound.volume = 0.5;
+
 function $(id) {
   return document.getElementById(id);
 }
 
+function escapeHTML(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // ==========================================
-// LOGIN & SESSION MANAGEMENT
+// 2. LOGIN & SESSION MANAGEMENT
 // ==========================================
 async function handleLoginSubmit(e) {
   e.preventDefault();
@@ -66,7 +82,7 @@ function logout() {
 }
 
 // ==========================================
-// UPDATE TAMPILAN SESUAI ROLE
+// 3. UPDATE TAMPILAN SESUAI ROLE
 // ==========================================
 function updateRoleUI(role) {
   currentRole = role;
@@ -104,9 +120,15 @@ function updateRoleUI(role) {
   }
 
   renderMenu();
+
+  // Jika modal chat sedang terbuka, muat ulang chat sesuai peran baru
+  const modal = $('chat-modal');
+  if (modal && !modal.classList.contains('hidden')) {
+    initChat();
+  }
 }
 
-// Modal Control
+// Modal Control Login
 function openLoginModal() {
   $('login-modal').classList.remove('hidden');
 }
@@ -116,7 +138,7 @@ function closeLoginModal() {
 }
 
 // ==========================================
-// FETCH & CRUD MENU (DENGAN GAMBAR)
+// 4. FETCH & CRUD MENU (DENGAN GAMBAR)
 // ==========================================
 async function fetchProducts() {
   const list = $('menu-list');
@@ -162,7 +184,7 @@ async function handleAddProduct(e) {
 
   let finalImageUrl = urlInput;
 
-  // 1. Upload File Lokal jika ada file yang dipilih
+  // 1. Upload File Lokal jika ada
   if (fileInput) {
     const fileExt = fileInput.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -179,7 +201,6 @@ async function handleAddProduct(e) {
       return;
     }
 
-    // Ambil URL Publik
     const { data: publicUrlData } = supabaseClient.storage
       .from('menu-images')
       .getPublicUrl(filePath);
@@ -228,6 +249,12 @@ function filterKantin(id) {
   activeCanteen = Number(id);
   updateTabStyle();
   renderMenu();
+
+  // Jika modal chat terbuka, muat ulang chat sesuai kantin aktif
+  const modal = $('chat-modal');
+  if (modal && !modal.classList.contains('hidden')) {
+    initChat();
+  }
 }
 
 function updateTabStyle() {
@@ -282,17 +309,223 @@ function renderMenu() {
   });
 }
 
-function escapeHTML(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+// ==========================================
+// 5. CHAT WIDGET & REALTIME LOGIC
+// ==========================================
+function toggleChatModal() {
+  const modal = $('chat-modal');
+  const isHidden = modal.classList.contains('hidden');
+
+  if (isHidden) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    unreadCount = 0;
+    updateChatBadge();
+    initChat();
+  } else {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+function updateChatBadge() {
+  const badge = $('chat-badge');
+  if (!badge) return;
+
+  if (unreadCount > 0) {
+    badge.innerText = unreadCount > 99 ? '99+' : unreadCount;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+async function initChat() {
+  const headerTitle = $('chat-header-title');
+  if (headerTitle) headerTitle.innerText = `Chat Kantin ${activeCanteen}`;
+
+  await fetchChatMessages();
+  subscribeChatRealtime();
+}
+
+async function fetchChatMessages() {
+  const container = $('chat-messages');
+
+  const { data, error } = await supabaseClient
+    .from('chat_messages')
+    .select('*')
+    .eq('canteen_id', activeCanteen)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    container.innerHTML = `<p class="text-rose-500 text-center text-[11px]">Gagal memuat pesan.</p>`;
+    return;
+  }
+
+  renderChatMessages(data || []);
+}
+
+function renderChatMessages(messages) {
+  const container = $('chat-messages');
+
+  if (messages.length === 0) {
+    container.innerHTML = `<p class="text-slate-400 text-center text-[11px] py-4">Belum ada obrolan di Kantin ${activeCanteen}. Mulai sapa!</p>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  messages.forEach(msg => {
+    // Tentukan apakah pesan dikirim oleh user yang sedang aktif
+    const isMe = (currentRole === 'guest' && msg.sender_role === 'guest') || 
+                 (currentRole !== 'guest' && currentRole === msg.sender_role);
+
+    container.innerHTML += `
+      <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
+        <span class="text-[9px] text-slate-400 mb-0.5 px-1">${escapeHTML(msg.sender_name)}</span>
+        <div class="max-w-[80%] p-2 rounded-xl text-xs chat-bubble ${
+          isMe 
+            ? 'bg-indigo-600 text-white rounded-br-none' 
+            : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'
+        }">
+          ${escapeHTML(msg.message)}
+        </div>
+      </div>
+    `;
+  });
+
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendChatMessage(e) {
+  e.preventDefault();
+  const input = $('chat-input');
+  const text = input.value.trim();
+
+  if (!text) return;
+
+  // Tentukan nama pengirim sesuai peran aktif
+  let senderName = 'Pembeli (Guest)';
+  if (currentRole === 'admin') {
+    senderName = 'Admin Kantin';
+  } else if (currentRole.startsWith('kantin')) {
+    senderName = `Penjual Kantin ${activeCanteen}`;
+  }
+
+  input.value = '';
+
+  const { error } = await supabaseClient
+    .from('chat_messages')
+    .insert([{
+      canteen_id: activeCanteen,
+      sender_role: currentRole,
+      sender_name: senderName,
+      message: text
+    }]);
+
+  if (error) {
+    alert('Gagal mengirim pesan: ' + error.message);
+  }
+}
+
+// Typing Indicator Signal
+function handleTypingInput() {
+  if (!chatSubscription) return;
+
+  let senderName = currentRole === 'guest' ? 'Pembeli' : `Penjual Kantin ${activeCanteen}`;
+
+  chatSubscription.send({
+    type: 'broadcast',
+    event: 'typing',
+    payload: {
+      sender_name: senderName,
+      sender_role: currentRole
+    }
+  });
+}
+
+function showTypingIndicator(name) {
+  const container = $('chat-messages');
+  let indicator = $('typing-indicator');
+
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'typing-indicator';
+    indicator.className = 'flex items-center gap-1.5 text-slate-400 text-[11px] italic my-1 px-1';
+    container.appendChild(indicator);
+  }
+
+  indicator.innerHTML = `
+    <span>${escapeHTML(name)} sedang mengetik</span>
+    <span class="inline-flex gap-0.5">
+      <span class="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+      <span class="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+      <span class="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+    </span>
+  `;
+
+  container.scrollTop = container.scrollHeight;
+
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    if (indicator) indicator.remove();
+  }, 2500);
+}
+
+function subscribeChatRealtime() {
+  if (chatSubscription) {
+    supabaseClient.removeChannel(chatSubscription);
+  }
+
+  chatSubscription = supabaseClient
+    .channel(`canteen_chat_${activeCanteen}`)
+    .on('postgres_changes', { 
+      event: 'INSERT', 
+      schema: 'public', 
+      table: 'chat_messages',
+      filter: `canteen_id=eq.${activeCanteen}`
+    }, (payload) => {
+      const newMsg = payload.new;
+      const isMyMsg = (currentRole === 'guest' && newMsg.sender_role === 'guest') || 
+                      (currentRole !== 'guest' && currentRole === newMsg.sender_role);
+
+      const indicator = $('typing-indicator');
+      if (indicator) indicator.remove();
+
+      if (!isMyMsg) {
+        notificationSound.currentTime = 0;
+        notificationSound.play().catch(() => {});
+      }
+
+      const modal = $('chat-modal');
+      const isChatClosed = modal && modal.classList.contains('hidden');
+
+      if (isChatClosed) {
+        if (!isMyMsg) {
+          unreadCount++;
+          updateChatBadge();
+        }
+      } else {
+        fetchChatMessages();
+      }
+    })
+    .on('broadcast', { event: 'typing' }, (response) => {
+      const payload = response.payload;
+      const isMyEvent = (currentRole === 'guest' && payload.sender_role === 'guest') || 
+                        (currentRole !== 'guest' && currentRole === payload.sender_role);
+
+      if (!isMyEvent) {
+        showTypingIndicator(payload.sender_name);
+      }
+    })
+    .subscribe();
 }
 
 // ==========================================
-// INISIALISASI
+// 6. INISIALISASI UTAMA
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   $('login-form').addEventListener('submit', handleLoginSubmit);$('add-form').addEventListener('submit', handleAddProduct);
+  
   updateTabStyle();
   checkLocalSession();
   fetchProducts();
