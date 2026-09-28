@@ -1,56 +1,78 @@
 // ==========================================
-// 1. KONFIGURASI SUPABASE
+// KONFIGURASI SUPABASE
 // ==========================================
 const SUPABASE_URL = 'https://ymaqspvidhwgzwrxxbfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ==========================================
-// 2. STATE APLIKASI
-// ==========================================
 let products = [];
 let activeCanteen = 1;
-let currentRole = 'guest'; // Default otomatis Guest
+let currentRole = 'guest'; // Default Mode Guest
 
 function $(id) {
   return document.getElementById(id);
 }
 
 // ==========================================
-// 3. AUTENTIKASI & ROLE
+// LOGIN MANUAL VIA TABEL DATABASE
 // ==========================================
-async function checkAuthSession() {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session) {
-    await fetchUserProfile(session.user.id);
-  } else {
-    updateRoleUI('guest');
-  }
+async function handleLoginSubmit(e) {
+  e.preventDefault();
 
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-      await fetchUserProfile(session.user.id);
-    } else if (event === 'SIGNED_OUT') {
-      updateRoleUI('guest');
-    }
-  });
-}
+  const usernameInput = $('login-email').value.trim(); // Bisa diisi username/email
+  const passwordInput = $('login-password').value;
+  const btn = $('btn-submit-login');
 
-async function fetchUserProfile(userId) {
+  btn.disabled = true;
+  btn.innerText = 'Memproses...';
+
+  // 1. Cek data username/email dan password langsung ke tabel data_user
   const { data, error } = await supabaseClient
     .from('data_user')
-    .select('role')
-    .eq('id', userId)
+    .select('*')
+    .eq('username', usernameInput) // Sesuaikan nama kolom jika di DB pakai 'email'
+    .eq('password', passwordInput)
     .single();
 
+  btn.disabled = false;
+  btn.innerText = 'Masuk';
+
   if (error || !data) {
-    updateRoleUI('guest');
+    alert('Username atau Password salah!');
     return;
   }
 
+  // 2. Simpan session login sederhana di browser (LocalStorage)
+  localStorage.setItem('user_session', JSON.stringify({
+    username: data.username,
+    role: data.role
+  }));
+
+  // 3. Update UI sesuai Role yang didapat dari tabel
   updateRoleUI(data.role);
+  closeLoginModal();
 }
 
+// Cek status login saat halaman pertama kali dibuka
+function checkLocalSession() {
+  const savedSession = localStorage.getItem('user_session');
+  if (savedSession) {
+    const user = JSON.parse(savedSession);
+    updateRoleUI(user.role);
+  } else {
+    updateRoleUI('guest');
+  }
+}
+
+// Logout sederhana
+function logout() {
+  localStorage.removeItem('user_session');
+  updateRoleUI('guest');
+}
+
+// ==========================================
+// UPDATE UI SESUAI ROLE
+// ==========================================
 function updateRoleUI(role) {
   currentRole = role;
   const roleBadge = $('role-badge');
@@ -68,7 +90,6 @@ function updateRoleUI(role) {
   } else {
     btnLogin.classList.add('hidden');
     btnLogout.classList.remove('hidden');
-    btnLogout.classList.flex = true;
     formContainer.classList.remove('hidden');
 
     if (role === 'admin') {
@@ -80,7 +101,7 @@ function updateRoleUI(role) {
       roleBadge.innerText = `Role: Kantin ${num}`;
       roleBadge.className = 'bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs px-3 py-1.5 rounded-xl font-bold';
       selectCanteen.value = num;
-      selectCanteen.disabled = true; // Pengelola kantin terkunci di kantinnya sendiri
+      selectCanteen.disabled = true;
     }
   }
 
@@ -96,33 +117,8 @@ function closeLoginModal() {
   $('login-modal').classList.add('hidden');$('login-form').reset();
 }
 
-async function handleLoginSubmit(e) {
-  e.preventDefault();
-  const email = $('login-email').value.trim();
-  const password = $('login-password').value;
-  const btn = $('btn-submit-login');
-
-  btn.disabled = true;
-  btn.innerText = 'Memproses...';
-
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-  btn.disabled = false;
-  btn.innerText = 'Masuk';
-
-  if (error) {
-    alert('Login gagal: ' + error.message);
-  } else {
-    closeLoginModal();
-  }
-}
-
-async function logout() {
-  await supabaseClient.auth.signOut();
-}
-
 // ==========================================
-// 4. DATA SUPABASE (FETCH, INSERT, DELETE)
+// FETCH & CRUD MENU
 // ==========================================
 async function fetchProducts() {
   const list = $('menu-list');
@@ -134,7 +130,6 @@ async function fetchProducts() {
     .order('id', { ascending: true });
 
   if (error) {
-    console.error(error);
     list.innerHTML = `<p class="text-rose-500 col-span-full text-center py-8">Gagal memuat data menu.</p>`;
     return;
   }
@@ -188,9 +183,6 @@ async function deleteMenu(id) {
   await fetchProducts();
 }
 
-// ==========================================
-// 5. RENDERING UI
-// ==========================================
 function filterKantin(id) {
   activeCanteen = Number(id);
   updateTabStyle();
@@ -222,7 +214,6 @@ function renderMenu() {
     return;
   }
 
-  // Cek apakah user berhak menghapus menu di kantin aktif ini
   const canDelete = currentRole === 'admin' || currentRole === `kantin${activeCanteen}`;
 
   list.innerHTML = '';
@@ -251,12 +242,10 @@ function escapeHTML(text) {
   return div.innerHTML;
 }
 
-// ==========================================
-// 6. INITIALIZATION
-// ==========================================
+// INIALISASI
 document.addEventListener('DOMContentLoaded', () => {
   $('login-form').addEventListener('submit', handleLoginSubmit);$('add-form').addEventListener('submit', handleAddProduct);
   updateTabStyle();
-  checkAuthSession();
+  checkLocalSession();
   fetchProducts();
 });
