@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Portal Kantin Central</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen">
+
+  <!-- LOGIN -->
+  <div id="login-portal" class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200/80 p-8">
+
+      <div class="text-center mb-8">
+
+        <div class="w-16 h-16 bg-indigo-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl font-black shadow-lg shadow-indigo-500/30">
+          K
+        </div>
+
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+          Portal Kantin Central
+        </h1>
+
+        <p class="text-xs text-slate-500 mt-1">
+          Masuk untuk mengelola menu atau melihat katalog makanan
+        </p>
+
+      </div>
+
+      <form id="auth-form" class="space-y-4">
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Username
+          </label>
+
+          <div class="relative">
+            <i class="ri-user-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+
+            <input
+              type="text"
+              id="auth-username"
+              placeholder="Masukkan username"
+              required
+              autocomplete="username"
+              class="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+            >
+          </div>
+        </div>
+
+        <div>
+
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+            Password
+          </label>
+
+          <div class="relative">
+            <i class="ri-lock-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+
+            <input
+              type="password"
+              id="auth-password"
+              placeholder="••••••••"
+              required
+              autocomplete="current-password"
+              class="w-full bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+            >
+          </div>
+
+        </div>
+
+        <button
+          type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm shadow-md shadow-indigo-600/20 transition"
+        >
+          Masuk ke System
+        </button>
+
+      </form>
+
+      <div class="relative my-6 text-center">
+
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full border-t border-slate-200"></div>
+        </div>
+
+        <span class="relative bg-white px-3 text-xs text-slate-400 font-medium">
+          atau
+        </span>
+
+      </div>
+
+      <button
+        type="button"
+        id="guest-login"
+        class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 border border-slate-200"
+      >
+        <i class="ri-eye-line text-base"></i>
+        <span>Lihat Menu Makanan (Tanpa Login)</span>
+      </button>
+
+    </div>
+  </div>
+
+
+  <!-- MAIN APP -->
+  <div id="main-app" class="hidden min-h-screen flex flex-col">
+
+    <!-- NAVBAR -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50">
+
+      <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+
+        <div class="flex items-center space-x-3">
+
+          <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-lg">
+            K
+          </div>
+
+          <div>
+            <h2 class="font-bold text-sm leading-none">
+              KantinCentral
+            </h2>
+
+            <p class="text-[10px] text-slate-400">
+              Digital Food Court
+            </p>
+          </div>
+
+        </div>
+
+        <div class="flex items-center space-x-3">
+
+          <span
+            id="role-display"
+            class="text-xs bg-slate-800 text-indigo-400 px-3 py-1 rounded-full font-semibold border border-slate-700"
+          >
+            Role: Guest
+          </span>
+
+          <button
+            type="button"
+            id="logout-btn"
+            class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center space-x-1"
+          >
+            <i class="ri-logout-box-r-line"></i>
+            <span>Keluar</span>
+          </button>
+
+        </div>
+
+      </div>
+    </header>
+
+
+    <!-- CONTENT -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+
+      <!-- ADMIN -->
+      <section
+        id="page-admin"
+        class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
+      >
+
+        <div class="flex items-center space-x-3 mb-4">
+
+          <i class="ri-dashboard-line text-2xl text-rose-600"></i>
+
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">
+              Panel Kontrol Admin
+            </h3>
+
+            <p class="text-xs text-slate-500">
+              Ringkasan total menu makanan terdaftar di seluruh kantin
+            </p>
+          </div>
+
+        </div>
+
+        <div
+          class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"
+          id="admin-stats"
+        ></div>
+
+      </section>
+
+
+      <!-- OWNER -->
+      <section
+        id="page-owner"
+        class="hidden bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
+      >
+
+        <div class="flex items-center space-x-3 mb-6">
+
+          <i class="ri-store-2-line text-2xl text-emerald-600"></i>
+
+          <div>
+
+            <h3
+              id="owner-title"
+              class="text-lg font-bold text-slate-900"
+            >
+              Manajemen Menu Kantin
+            </h3>
+
+            <p class="text-xs text-slate-500">
+              Tambah atau hapus menu makanan yang dijual
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <form
+          id="add-product-form"
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        >
+
+          <div>
+
+            <label class="block text-xs font-semibold text-slate-600 mb-1">
+              Nama Menu
+            </label>
+
+            <input
+              type="text"
+              id="prod-name"
+              placeholder="Misal: Nasi Goreng"
+              required
+              class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label class="block text-xs font-semibold text-slate-600 mb-1">
+              Harga (Rp)
+            </label>
+
+            <input
+              type="number"
+              id="prod-price"
+              placeholder="12000"
+              min="0"
+              required
+              class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+
+          </div>
+
+
+          <div>
+
+            <label class="block text-xs font-semibold text-slate-600 mb-1">
+              URL Gambar (Opsional)
+            </label>
+
+            <input
+              type="url"
+              id="prod-img"
+              placeholder="https://..."
+              class="w-full border border-slate-200 p-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+
+          </div>
+
+
+          <div class="flex items-end">
+
+            <button
+              type="submit"
+              class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-lg transition"
+            >
+              Tambah Menu
+            </button>
+
+          </div>
+
+        </form>
+
+      </section>
+
+
+      <!-- KATALOG -->
+      <section id="page-katalog" class="space-y-4">
+
+        <div
+          class="flex space-x-2 overflow-x-auto pb-2"
+          id="kantin-tabs"
+        ></div>
+
+
+        <div
+          id="canteen-display"
+          class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm"
+        >
+
+          <div class="mb-6 border-b border-slate-100 pb-4">
+
+            <h3
+              id="canteen-name"
+              class="text-2xl font-bold text-slate-900"
+            ></h3>
+
+            <p
+              id="canteen-desc"
+              class="text-xs text-slate-500 mt-1"
+            ></p>
+
+          </div>
+
+
+          <div
+            id="product-list"
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+          ></div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 text-center py-4 text-xs text-slate-400 mt-auto">
+      &copy; Kantin Central System
+    </footer>
+
+  </div>
+
+
+  <script src="script.js"></script>
+
+</body>
+</html>
