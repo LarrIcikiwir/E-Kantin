@@ -9,12 +9,12 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // 2. DATA KANTIN
 // ==========================================
 const canteenLayouts = {
-  1: { name: 'Kantin 1 - Spesialis Nasi & Berat', desc: 'Menyediakan aneka nasi olahan segar dan lauk pauk.' },
-  2: { name: 'Kantin 2 - Bebakaran & Mie', desc: 'Spesialis Mie Goreng, Rebus, dan Bakaran Pedas.' },
-  3: { name: 'Kantin 3 - Snack & Cold Drink', desc: 'Tempat nongkrong dengan es boba, kopi, dan camilan renyah.' },
-  4: { name: 'Kantin 4 - Masakan Rumahan', desc: 'Menu prasmanan sehat dan hemat kantong mahasiswa/siswa.' },
-  5: { name: 'Kantin 5 - Western & Fast Food', desc: 'Burger, Dimsum, Kentang Goreng, dan Milkshake.' },
-  6: { name: 'Kantin 6 - Jus & Buah Segar', desc: 'Jus buah murni, es buah, dan salad sehat.' }
+  1: { name: 'Kantin 1 - Spesialis Nasi & Berat', desc: 'BISA QRIS: ?' },
+  2: { name: 'Kantin 2 - Bebakaran & Mie', desc: 'BISA QRIS: BISA.' },
+  3: { name: 'Kantin 3 - Snack & Cold Drink', desc: 'BISA QRIS: ?' },
+  4: { name: 'Kantin 4 - Masakan Rumahan', desc: 'BISA QRIS: ?' },
+  5: { name: 'Kantin 5 - Western & Fast Food', desc: 'BISA QRIS: TIDAK' },
+  6: { name: 'Kantin 6 - Jus & Buah Segar', desc: 'BISA QRIS: ?' }
 };
 
 let products = [];
