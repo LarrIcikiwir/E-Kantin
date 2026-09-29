@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>E-Kantin — Multi-Kantin Digital</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,39 +34,39 @@
     </div>
   </header>
 
-  <!-- Navigation Bar: Pilih Kantin & Navigasi -->
+  <!-- Secondary Bar: Selector Kantin & Tab Navigasi -->
   <div class="canteen-nav-bar">
-    <div class="container nav-tabs">
+    <div class="nav-tabs-wrapper">
       <div class="canteen-selector-wrap">
         <label for="canteenSelect">Pilih Kantin:</label>
         <select id="canteenSelect" class="canteen-dropdown"></select>
       </div>
 
-      <div class="tab-links" id="roleTabLinks">
-        <button class="nav-tab active" data-tab="catalog">🛍️ Katalog Menu</button>
-        <button class="nav-tab" data-tab="chat">💬 Chat Kantin</button>
-        <button class="nav-tab admin-only" data-tab="admin" style="display: none;">⚙️ Kelola Kantin (Admin)</button>
-        <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu (Kantin)</button>
-      </div>
+      <nav class="tab-links" id="roleTabLinks">
+        <button class="nav-tab active" data-tab="catalog">🛍️ Katalog</button>
+        <button class="nav-tab" data-tab="chat">💬 Chat</button>
+        <button class="nav-tab admin-only" data-tab="admin" style="display: none;">⚙️ Kelola Kantin</button>
+        <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu</button>
+      </nav>
     </div>
   </div>
 
-  <main class="container main-content">
+  <main class="main-content">
 
     <!-- ================= VIEW 1: KATALOG PEMBELI ================= -->
     <div id="viewCatalog" class="view-panel active">
-      <!-- Banner Kantin -->
+      <!-- Responsive Banner Kantin -->
       <div class="canteen-banner" id="canteenBanner">
         <div class="banner-overlay">
           <img id="canteenPfp" class="canteen-hero-pfp" src="" alt="PFP Kantin" />
-          <div>
+          <div class="banner-text">
             <h2 id="canteenTitle">Nama Kantin</h2>
             <p id="canteenSubtitle">Pilihan makanan lezat dan higienis</p>
           </div>
         </div>
       </div>
 
-      <!-- Filter Kategori & Search -->
+      <!-- Filter Kategori & Search Bar -->
       <div class="filter-bar">
         <div class="categories" id="categoryChips">
           <button class="chip active" data-cat="all">Semua</button>
@@ -75,26 +75,40 @@
           <button class="chip" data-cat="snack">🍟 Cemilan</button>
           <button class="chip" data-cat="non-makanan">📦 Non-Makanan</button>
         </div>
-        <input type="text" id="searchInput" class="search-input" placeholder="Cari barang atau makanan..." />
+        <div class="search-wrap">
+          <input type="text" id="searchInput" class="search-input" placeholder="Cari menu..." />
+        </div>
       </div>
 
-      <!-- Layout Grid Produk + Cart Sidebar -->
+      <!-- Store Grid & Cart Sidebar -->
       <div class="store-layout">
         <div id="productGrid" class="product-grid"></div>
 
-        <aside class="cart-sidebar">
-          <h3>Keranjang Belanja</h3>
+        <aside class="cart-sidebar" id="cartSidebar">
+          <div class="cart-header">
+            <h3>Keranjang Saya</h3>
+            <button id="closeCartMobileBtn" class="btn-ghost mobile-only" aria-label="Tutup">&times;</button>
+          </div>
           <div id="cartItems" class="cart-items">
             <p class="empty-state">Keranjang kosong.</p>
           </div>
           <div class="cart-total-box">
             <div class="total-row">
-              <span>Total</span>
+              <span>Total:</span>
               <strong id="cartTotalPrice">Rp 0</strong>
             </div>
             <button id="checkoutBtn" class="btn-primary" disabled>Beli Sekarang</button>
           </div>
         </aside>
+      </div>
+
+      <!-- Mobile Floating Cart Trigger -->
+      <div class="mobile-cart-bar mobile-only" id="mobileCartBar">
+        <div class="mobile-cart-info">
+          <span id="mobileCartBadge">0 Item</span>
+          <strong id="mobileCartTotal">Rp 0</strong>
+        </div>
+        <button id="openCartMobileBtn" class="btn-primary">Lihat Keranjang</button>
       </div>
     </div>
 
@@ -103,7 +117,7 @@
       <div class="chat-card">
         <div class="chat-header">
           <h3 id="chatWithTitle">Ruang Chat</h3>
-          <span class="chat-hint">Pesan langsung masuk ke penjual kantin</span>
+          <span class="chat-hint">Kirim pesan langsung ke penjual</span>
         </div>
         <div id="chatMessages" class="chat-messages"></div>
         <form id="chatForm" class="chat-form">
@@ -121,11 +135,11 @@
           <h3>+ Tambah Menu Baru</h3>
           <form id="addMenuForm" class="form-stack">
             <label>Nama Menu / Barang:
-              <input type="text" id="menuName" required placeholder="Contoh: Nasi Goreng Gila / Buku Tulis" />
+              <input type="text" id="menuName" required placeholder="Contoh: Nasi Bakar / Pulpen Gel" />
             </label>
             <div class="form-row">
               <label>Harga (Rp):
-                <input type="number" id="menuPrice" required placeholder="15000" />
+                <input type="number" id="menuPrice" required placeholder="12000" />
               </label>
               <label>Stok Awal:
                 <input type="number" id="menuStock" value="10" required />
@@ -139,19 +153,19 @@
                 <option value="non-makanan">📦 Non-Makanan / ATK</option>
               </select>
             </label>
-            <label>Varian (Pisah dengan koma):
-              <input type="text" id="menuVariants" placeholder="Contoh: Pedas, Sedang, Original" />
+            <label>Varian (Pisah tanda koma):
+              <input type="text" id="menuVariants" placeholder="Pedas, Sedang, Manis" />
             </label>
-            <label>Upload Foto:
-              <input type="file" id="menuPhotoFile" accept="image/*" />
+            <label>Upload Foto Menu:
+              <input type="file" id="menuPhotoFile" accept="image/*" class="file-input" />
             </label>
-            <button type="submit" class="btn-primary">Simpan ke Menu</button>
+            <button type="submit" class="btn-primary" id="btnSubmitMenu">Simpan Menu</button>
           </form>
         </div>
 
-        <!-- List & Atur Stok Langsung -->
+        <!-- Atur Stok Langsung -->
         <div class="dash-card">
-          <h3>Stok Menu Kantin Anda</h3>
+          <h3>Stok Menu Kantin</h3>
           <div id="kantinMenuList" class="stock-manager-list"></div>
         </div>
       </div>
@@ -163,28 +177,29 @@
         <h3>+ Tambah Kantin Baru (Admin)</h3>
         <form id="addCanteenForm" class="form-stack">
           <label>Nama Kantin:
-            <input type="text" id="adminCanteenName" placeholder="Contoh: Kantin 7 - Aneka Jus" required />
+            <input type="text" id="adminCanteenName" placeholder="Contoh: Kantin 7 - Aneka Jus Segar" required />
           </label>
-          <label>URL Banner:
-            <input type="url" id="adminBannerUrl" placeholder="https://..." value="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000" />
+          <label>Upload Banner Kantin:
+            <input type="file" id="adminBannerFile" accept="image/*" class="file-input" />
           </label>
-          <label>URL PFP:
-            <input type="url" id="adminPfpUrl" placeholder="https://..." value="https://api.dicebear.com/7.x/bottts/svg?seed=baru" />
+          <label>Upload Foto Profil (PFP) Kantin:
+            <input type="file" id="adminPfpFile" accept="image/*" class="file-input" />
           </label>
-          <button type="submit" class="btn-primary">Tambah Kantin</button>
+          <button type="submit" class="btn-primary" id="btnSubmitCanteen">Tambah Kantin</button>
         </form>
       </div>
     </div>
 
   </main>
 
-  <!-- Login Modal (Tanpa Email) -->
+  <!-- Login Modal (Upload File PFP, Tanpa Email) -->
   <dialog id="loginModal" class="modal">
     <div class="modal-box">
       <h3>Login Akun E-Kantin</h3>
-      <p class="modal-desc">Masuk tanpa email. Cukup pilih peran dan username.</p>
+      <p class="modal-desc">Masuk tanpa email. Cukup pilih peran, username, dan foto profil.</p>
+      
       <form id="loginForm" class="form-stack">
-        <label>Peran / Role:
+        <label>Peran:
           <select id="loginRole" required>
             <option value="pembeli">Pembeli (Siswa / Guru)</option>
             <option value="kantin">Pemilik Kantin</option>
@@ -193,27 +208,28 @@
         </label>
 
         <div id="kantinOwnerSelectWrap" style="display: none;">
-          <label>Pilih Kantin Anda:
+          <label>Kantin Anda:
             <select id="loginKantinId"></select>
           </label>
         </div>
 
         <label>Username:
-          <input type="text" id="loginUsername" placeholder="Contoh: andi_siswa / Bu Siti" required />
+          <input type="text" id="loginUsername" placeholder="Contoh: Rama / Bu Siti" required />
         </label>
 
-        <label>Foto Profil (PFP URL opsional):
-          <input type="url" id="loginPfpInput" placeholder="https://... (Biarkan kosong untuk avatar acak)" />
+        <label>Upload Foto Profil (PFP):
+          <input type="file" id="loginPfpFile" accept="image/*" class="file-input" />
         </label>
 
         <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="cancelLoginBtn">Batal</button>
           <button type="submit" class="btn-primary">Masuk</button>
         </div>
       </form>
     </div>
   </dialog>
 
-  <!-- Supabase CDN -->
+  <!-- Supabase CDN Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
