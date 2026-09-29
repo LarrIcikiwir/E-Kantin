@@ -43,9 +43,8 @@
       </div>
 
       <nav class="tab-links" id="roleTabLinks">
-        <button class="nav-tab active" data-tab="catalog">🛍️ Katalog</button>
+        <button class="nav-tab active" data-tab="catalog">🛍️ Katalog Menu</button>
         <button class="nav-tab" data-tab="orders">📦 Pesanan <span id="ordersCountBadge" class="tab-badge" style="display:none;">0</span></button>
-        <button class="nav-tab" data-tab="chat">💬 Chat Privat</button>
         <button class="nav-tab admin-only" data-tab="admin" style="display: none;">⚙️ Kelola Kantin</button>
         <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu</button>
       </nav>
@@ -109,13 +108,13 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 2: RIWAYAT & PESANAN MASUK ================= -->
+    <!-- ================= VIEW 2: RIWAYAT & PESANAN (DENGAN CHAT TERINTEGRASI) ================= -->
     <div id="viewOrders" class="view-panel">
       <div class="dash-card max-800">
         <div class="orders-panel-header">
           <div>
-            <h3 id="ordersTitle">Riwayat Pesanan</h3>
-            <p class="chat-hint" id="ordersSubtitle">Daftar pesanan Anda</p>
+            <h3 id="ordersTitle">Riwayat & Daftar Pesanan</h3>
+            <p class="chat-hint" id="ordersSubtitle">Pantau pesanan Anda dan chat langsung dengan penjual/pembeli di sini</p>
           </div>
           <button id="refreshOrdersBtn" class="btn-sm">🔄 Segarkan</button>
         </div>
@@ -123,32 +122,7 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 3: CHAT PRIVAT ================= -->
-    <div id="viewChat" class="view-panel">
-      <div class="chat-card">
-        <div class="chat-header">
-          <div>
-            <h3 id="chatWithTitle">Ruang Chat Privat</h3>
-            <span class="chat-hint" id="chatRoomSubtitle">Obrolan pribadi</span>
-          </div>
-
-          <!-- Selector khusus kantin untuk memilih pembeli -->
-          <div id="kantinBuyerSelectorBox" style="display: none; margin-top: 0.5rem;">
-            <label style="font-size: 0.75rem; font-weight: bold; color: var(--muted);">Pilih Pembeli:</label>
-            <select id="chatBuyerDropdown" class="canteen-dropdown" style="width: 100%;"></select>
-          </div>
-        </div>
-
-        <div id="chatMessages" class="chat-messages"></div>
-
-        <form id="chatForm" class="chat-form">
-          <input type="text" id="chatInput" placeholder="Ketik pesan..." required />
-          <button type="submit" class="btn-primary">Kirim</button>
-        </form>
-      </div>
-    </div>
-
-    <!-- ================= VIEW 4: KELOLA MENU (ROLE: KANTIN) ================= -->
+    <!-- ================= VIEW 3: KELOLA MENU (ROLE: KANTIN) ================= -->
     <div id="viewKantin" class="view-panel">
       <div class="dashboard-grid">
         <div class="dash-card">
@@ -190,7 +164,7 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 5: ADMIN PANEL ================= -->
+    <!-- ================= VIEW 4: ADMIN PANEL ================= -->
     <div id="viewAdmin" class="view-panel">
       <div class="dash-card max-600">
         <h3>+ Tambah Kantin Baru (Admin)</h3>
@@ -210,6 +184,26 @@
     </div>
 
   </main>
+
+  <!-- MODAL CHAT PESANAN (TERINTEGRASI DI PESANAN) -->
+  <dialog id="orderChatModal" class="modal">
+    <div class="modal-box chat-modal-box">
+      <div class="modal-chat-header">
+        <div>
+          <h3 id="orderChatModalTitle">💬 Chat Pesanan</h3>
+          <p id="orderChatModalDesc" class="chat-hint">Obrolan langsung seputar pesanan ini</p>
+        </div>
+        <button id="closeOrderChatBtn" class="btn-ghost">&times;</button>
+      </div>
+
+      <div id="orderChatMessages" class="chat-messages modal-chat-body"></div>
+
+      <form id="orderChatForm" class="chat-form">
+        <input type="text" id="orderChatInput" placeholder="Ketik pesan..." required />
+        <button type="submit" class="btn-primary">Kirim</button>
+      </form>
+    </div>
+  </dialog>
 
   <!-- Login / Edit Akun Modal -->
   <dialog id="loginModal" class="modal">
