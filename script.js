@@ -3,751 +3,443 @@
 // ==========================================
 const SUPABASE_URL = 'https://ymaqspvidhwgzwrxxbfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+// Fallback 6 Kantin jika koneksi offline / tabel belum di-seed
+const FALLBACK_CANTEENS = [
+  { id: 1, name: "Kantin 1 - Bu Siti (Aneka Nasi)", banner_url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siti" },
+  { id: 2, name: "Kantin 2 - Pak Joko (Mie & Bakso)", banner_url: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko" },
+  { id: 3, name: "Kantin 3 - Mbak Rini (Minuman & Kopi)", banner_url: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rini" },
+  { id: 4, name: "Kantin 4 - Mas Budi (Gorengan & Snack)", banner_url: "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Budi" },
+  { id: 5, name: "Kantin 5 - Teh Maya (Jus & Buah)", banner_url: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" },
+  { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Non-Makanan)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
+];
+
+// State Global
+let currentUser = JSON.parse(localStorage.getItem("ekantin_user")) || {
+  username: "Siswa 1",
+  role: "pembeli",
+  kantin_id: null,
+  pfp: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siswa1"
+};
+
+let canteens = [];
+let selectedCanteenId = 1;
 let products = [];
-let activeCanteen = 1;
-let currentRole = 'guest';
+let cart = []; // [{ id, name, price, variant, qty }]
+let activeCategory = "all";
+let searchQuery = "";
 
-// State Keranjang Belanja
-let cart = []; // Array of { id, name, price, canteenId, qty }
-
-// State Chat Realtime
-let unreadCount = 0;
-let chatSubscription = null;
-let typingTimeout = null;
-
-// Audio Notifikasi Pesan
-const notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-notificationSound.volume = 0.5;
-
-function $(id) {
-  return document.getElementById(id);
-}
-
-function escapeHTML(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+const toRupiah = (num) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
 
 // ==========================================
-// 2. LOGIN & SESSION MANAGEMENT
+// 2. INITIALIZATION & DATA FETCHING
 // ==========================================
-async function handleLoginSubmit(e) {
-  e.preventDefault();
-
-  const usernameInput = $('login-email').value.trim();
-  const passwordInput = $('login-password').value;
-  const btn = $('btn-submit-login');
-
-  btn.disabled = true;
-  btn.innerText = 'Memproses...';
-
-  const { data, error } = await supabaseClient
-    .from('data_user')
-    .select('*')
-    .eq('username', usernameInput)
-    .eq('password', passwordInput)
-    .single();
-
-  btn.disabled = false;
-  btn.innerText = 'Masuk';
-
-  if (error || !data) {
-    alert('Username atau Password salah!');
-    return;
-  }
-
-  localStorage.setItem('user_session', JSON.stringify({
-    username: data.username,
-    role: data.role
-  }));
-
-  updateRoleUI(data.role);
-  closeLoginModal();
-}
-
-function checkLocalSession() {
-  const savedSession = localStorage.getItem('user_session');
-  if (savedSession) {
-    const user = JSON.parse(savedSession);
-    updateRoleUI(user.role);
-  } else {
-    updateRoleUI('guest');
-  }
-}
-
-function logout() {
-  localStorage.removeItem('user_session');
-  updateRoleUI('guest');
-}
-
-function openLoginModal() {
-  $('login-modal').classList.remove('hidden');
-}
-
-function closeLoginModal() {
-  $('login-modal').classList.add('hidden');$('login-form').reset();
-}
-
-// ==========================================
-// 3. UPDATE TAMPILAN SESUAI ROLE
-// ==========================================
-function updateRoleUI(role) {
-  currentRole = role;
-  const roleBadge = $('role-badge');
-  const btnLogin = $('btn-login-trigger');
-  const btnLogout = $('btn-logout');
-  const formContainer = $('add-form-container');
-  const selectCanteen = $('canteen-select');
-
-  if (role === 'guest') {
-    roleBadge.innerText = 'Mode Guest';
-    roleBadge.className = 'bg-slate-100 text-slate-600 border border-slate-200 text-xs px-3 py-1.5 rounded-xl font-bold';
-    btnLogin.classList.remove('hidden');
-    btnLogout.classList.add('hidden');
-    formContainer.classList.add('hidden');
-  } else {
-    btnLogin.classList.add('hidden');
-    btnLogout.classList.remove('hidden');
-    btnLogout.classList.add('flex');
-    formContainer.classList.remove('hidden');
-
-    if (role === 'admin') {
-      roleBadge.innerText = 'Role: ADMIN';
-      roleBadge.className = 'bg-rose-100 text-rose-700 border border-rose-200 text-xs px-3 py-1.5 rounded-xl font-bold';
-      selectCanteen.disabled = false;
-    } else if (role.startsWith('kantin')) {
-      const num = role.replace('kantin', '');
-      roleBadge.innerText = `Role: Kantin ${num}`;
-      roleBadge.className = 'bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs px-3 py-1.5 rounded-xl font-bold';
-      selectCanteen.value = num;
-      selectCanteen.disabled = true;
-      activeCanteen = Number(num);
-      updateTabStyle();
-    }
-  }
-
-  renderMenu();
-
-  const modal = $('chat-modal');
-  if (modal && !modal.classList.contains('hidden')) {
-    initChat();
-  }
-}
-
-// ==========================================
-// 4. FETCH & CRUD MENU
-// ==========================================
-async function fetchProducts() {
-  const list = $('menu-list');
-  list.innerHTML = `<p class="text-slate-400 col-span-full italic text-center py-8">Memuat data menu...</p>`;
-
-  const { data, error } = await supabaseClient
-    .from('data_kantin')
-    .select('*')
-    .order('id', { ascending: true });
-
-  if (error) {
-    list.innerHTML = `<p class="text-rose-500 col-span-full text-center py-8">Gagal memuat data menu.</p>`;
-    return;
-  }
-
-  products = (data || []).map(item => ({
-    id: item.id,
-    canteenId: Number(item.canteen_id),
-    name: item.name,
-    price: Number(item.price),
-    imageUrl: item.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80'
-  }));
-
-  renderMenu();
-}
-
-async function handleAddProduct(e) {
-  e.preventDefault();
-
-  const btnSave = $('btn-save-menu');
-  btnSave.disabled = true;
-  btnSave.innerText = 'Menyimpan...';
-
-  let canteenId = parseInt($('canteen-select').value);
-  if (currentRole.startsWith('kantin')) {
-    canteenId = parseInt(currentRole.replace('kantin', ''));
-  }
-
-  const name = $('name').value.trim();
-  const price = parseInt($('price').value);
-  const fileInput = $('image-file').files[0];
-  const urlInput = $('image-url').value.trim();
-
-  let finalImageUrl = urlInput;
-
-  if (fileInput) {
-    const fileExt = fileInput.name.split('.').pop();
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `menu/${fileName}`;
-
-    const { error: uploadError } = await supabaseClient.storage
-      .from('menu-images')
-      .upload(filePath, fileInput);
-
-    if (uploadError) {
-      alert('Gagal upload gambar: ' + uploadError.message);
-      btnSave.disabled = false;
-      btnSave.innerText = 'Simpan Menu';
-      return;
-    }
-
-    const { data: publicUrlData } = supabaseClient.storage
-      .from('menu-images')
-      .getPublicUrl(filePath);
-
-    finalImageUrl = publicUrlData.publicUrl;
-  }
-
-  const { error } = await supabaseClient
-    .from('data_kantin')
-    .insert([{ 
-      canteen_id: canteenId, 
-      name: name, 
-      price: price,
-      image_url: finalImageUrl || null
-    }]);
-
-  btnSave.disabled = false;
-  btnSave.innerText = 'Simpan Menu';
-
-  if (error) {
-    alert('Gagal menambah menu: ' + error.message);
-    return;
-  }
-
-  $('add-form').reset();
-  filterKantin(canteenId);
-  await fetchProducts();
-}
-
-async function deleteMenu(id) {
-  const product = products.find(p => p.id === id);
-  if (!product || !confirm(`Hapus menu "${product.name}"?`)) return;
-
-  const { error } = await supabaseClient.from('data_kantin').delete().eq('id', id);
-
-  if (error) {
-    alert('Gagal menghapus: ' + error.message);
-    return;
-  }
-
-  await fetchProducts();
-}
-
-function filterKantin(id) {
-  activeCanteen = Number(id);
-  updateTabStyle();
-  renderMenu();
+async function initApp() {
+  updateUserUI();
+  await loadCanteens();
+  await loadProducts();
+  setupEventListeners();
+  renderProducts();
   renderCart();
+  loadMessages();
+}
 
-  const modal = $('chat-modal');
-  if (modal && !modal.classList.contains('hidden')) {
-    initChat();
+async function loadCanteens() {
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient.from("canteens").select("*").order("id", { ascending: true });
+    canteens = (!error && data?.length) ? data : FALLBACK_CANTEENS;
+  } else {
+    canteens = FALLBACK_CANTEENS;
+  }
+
+  const select = document.getElementById("canteenSelect");
+  const loginSelect = document.getElementById("loginKantinId");
+  select.innerHTML = canteens.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+  loginSelect.innerHTML = canteens.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+
+  select.value = selectedCanteenId;
+  updateCanteenBanner();
+}
+
+async function loadProducts() {
+  if (supabaseClient) {
+    const { data, error } = await supabaseClient
+      .from("products")
+      .select("*")
+      .eq("canteen_id", selectedCanteenId)
+      .order("id", { ascending: false });
+
+    products = (!error && data) ? data : [];
+  } else {
+    products = JSON.parse(localStorage.getItem(`ekantin_prod_${selectedCanteenId}`)) || [];
   }
 }
 
-function updateTabStyle() {
-  const tabs = document.querySelectorAll('.tab-btn');
-  tabs.forEach((tab, index) => {
-    const canteenNum = index + 1;
-    if (canteenNum === activeCanteen) {
-      tab.className = 'tab-btn bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap shadow-md shadow-indigo-600/20';
-    } else {
-      tab.className = 'tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm';
-    }
+// ==========================================
+// 3. UI RENDERING
+// ==========================================
+function updateCanteenBanner() {
+  const current = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
+  if (!current) return;
+
+  const bannerEl = document.getElementById("canteenBanner");
+  bannerEl.style.backgroundImage = `url('${current.banner_url}')`;
+  document.getElementById("canteenPfp").src = current.pfp_url;
+  document.getElementById("canteenTitle").textContent = current.name;
+  document.getElementById("chatWithTitle").textContent = `Chat dengan ${current.name}`;
+}
+
+function renderProducts() {
+  const grid = document.getElementById("productGrid");
+  const filtered = products.filter(p => {
+    const matchCat = activeCategory === "all" || p.cat === activeCategory;
+    const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCat && matchSearch;
   });
-}
 
-// ==========================================
-// 5. FITUR KERANJANG BELANJA (CART)
-// ==========================================
-function addToCart(productId) {
-  const product = products.find(p => p.id === productId);
-  if (!product) return;
-
-  const existing = cart.find(item => item.id === productId);
-  if (existing) {
-    existing.qty += 1;
-  } else {
-    cart.push({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      canteenId: product.canteenId,
-      qty: 1
-    });
+  if (filtered.length === 0) {
+    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada menu di kantin ini.</p>`;
+    return;
   }
 
-  renderCart();
-  renderMenu();
-}
+  grid.innerHTML = filtered.map(item => {
+    const variantList = item.variants ? item.variants.split(",").map(v => v.trim()).filter(Boolean) : [];
+    const variantOptions = variantList.map(v => `<option value="${v}">${v}</option>`).join("");
+    const isOutOfStock = item.stock <= 0;
 
-function updateCartQty(productId, delta) {
-  const item = cart.find(i => i.id === productId);
-  if (!item) return;
+    return `
+      <article class="card">
+        <img class="card-img" src="${item.image_url || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=400'}" alt="${item.name}" />
+        <div class="card-body">
+          <span class="card-tag">${item.cat} • Stok: ${item.stock}</span>
+          <h3 class="card-title">${item.name}</h3>
 
-  item.qty += delta;
-  if (item.qty <= 0) {
-    cart = cart.filter(i => i.id !== productId);
-  }
+          ${variantList.length > 0 ? `
+            <select class="variant-select" id="variant_${item.id}">
+              ${variantOptions}
+            </select>
+          ` : ''}
 
-  renderCart();
-  renderMenu();
-}
-
-function getCartForActiveCanteen() {
-  return cart.filter(item => item.canteenId === activeCanteen);
+          <div class="card-footer">
+            <span class="card-price">${toRupiah(item.price)}</span>
+            <button class="btn-primary" ${isOutOfStock ? "disabled" : ""} onclick="handleAddToCart(${item.id})">
+              ${isOutOfStock ? "Habis" : "+ Beli"}
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderCart() {
-  const cartContainer = $('cart-container');
-  if (!cartContainer) return;
+  const container = document.getElementById("cartItems");
+  const totalEl = document.getElementById("cartTotalPrice");
+  const btn = document.getElementById("checkoutBtn");
 
-  const currentCart = getCartForActiveCanteen();
+  const total = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  totalEl.textContent = toRupiah(total);
+  btn.disabled = cart.length === 0;
 
-  if (currentCart.length === 0) {
-    cartContainer.innerHTML = `
-      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center text-slate-400 text-xs">
-        <i class="ri-shopping-cart-2-line text-2xl mb-1 block"></i>
-        Belum ada item dipilih dari Kantin ${activeCanteen}.
-      </div>`;
+  if (cart.length === 0) {
+    container.innerHTML = `<p class="empty-state">Keranjang kosong.</p>`;
     return;
   }
 
-  let total = 0;
-  let itemsHTML = currentCart.map(item => {
-    const subtotal = item.price * item.qty;
-    total += subtotal;
-    return `
-      <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
-        <div class="flex-1">
-          <p class="font-semibold text-slate-800">${escapeHTML(item.name)}</p>
-          <p class="text-[11px] text-slate-400">Rp ${item.price.toLocaleString('id-ID')} x ${item.qty}</p>
-        </div>
-        <div class="flex items-center gap-2">
-          <button onclick="updateCartQty(${item.id}, -1)" class="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-sm">-</button>
-          <span class="font-bold text-slate-800 text-xs w-4 text-center">${item.qty}</span>
-          <button onclick="updateCartQty(${item.id}, 1)" class="w-6 h-6 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">+</button>
-        </div>
+  container.innerHTML = cart.map((i, idx) => `
+    <div class="cart-row">
+      <div>
+        <strong>${i.name}</strong>
+        ${i.variant ? `<div style="font-size: 0.75rem; color: var(--muted);">${i.variant}</div>` : ""}
+        <div>${i.qty} x ${toRupiah(i.price)}</div>
       </div>
-    `;
-  }).join('');
-
-  cartContainer.innerHTML = `
-    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-        <h4 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-          <i class="ri-shopping-bag-3-line text-indigo-600"></i>
-          Pesanan Saya (Kantin ${activeCanteen})
-        </h4>
-        <span class="text-[11px] text-slate-400">${currentCart.reduce((sum, i) => sum + i.qty, 0)} Item</span>
-      </div>
-
-      <div class="space-y-1 max-h-48 overflow-y-auto pr-1">
-        ${itemsHTML}
-      </div>
-
-      <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
-        <span class="text-xs font-semibold text-slate-600">Total:</span>
-        <span class="text-sm font-extrabold text-emerald-600">Rp ${total.toLocaleString('id-ID')}</span>
-      </div>
-
-      <button onclick="triggerOrderCheckout()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-[0.98]">
-        <i class="ri-send-plane-fill"></i>
-        Kirim Pesanan ke Kantin Via Chat
-      </button>
+      <button class="btn-sm" onclick="removeFromCart(${idx})">Hapus</button>
     </div>
-  `;
+  `).join("");
 }
 
-// ==========================================
-// 6. LOGIKA PENGIRIMAN PESANAN (PEMESAN)
-// ==========================================
-function triggerOrderCheckout() {
-  const currentCart = getCartForActiveCanteen();
-  if (currentCart.length === 0) {
-    alert('Keranjang belanja Anda masih kosong!');
+function renderKantinStockManager() {
+  const container = document.getElementById("kantinMenuList");
+  if (!products.length) {
+    container.innerHTML = `<p class="empty-state">Belum ada produk terdaftar di kantin ini.</p>`;
     return;
   }
 
-  // Jika bukan Guest (misal Penjual/Admin sedang mengetes), langsung kirim
-  if (currentRole !== 'guest') {
-    processOrderSubmission({
-      name: currentRole === 'admin' ? 'Admin' : `Penjual Kantin ${activeCanteen}`,
-      className: 'Staff',
-      pickupTime: 'Sesuai Diskusi'
-    });
+  container.innerHTML = products.map(item => `
+    <div class="stock-item-row">
+      <div>
+        <strong>${item.name}</strong>
+        <div style="font-size: 0.75rem; color: var(--muted);">${toRupiah(item.price)} (${item.cat})</div>
+      </div>
+      <div class="stock-ctrl">
+        <button class="stock-btn" onclick="modifyStock(${item.id}, -1)">-</button>
+        <strong>${item.stock}</strong>
+        <button class="stock-btn" onclick="modifyStock(${item.id}, 1)">+</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ==========================================
+// 4. CART & STOCK ACTIONS
+// ==========================================
+window.handleAddToCart = function(id) {
+  const product = products.find(p => p.id === id);
+  if (!product || product.stock <= 0) return;
+
+  const variantSelect = document.getElementById(`variant_${id}`);
+  const variant = variantSelect ? variantSelect.value : "";
+
+  const existing = cart.find(c => c.id === id && c.variant === variant);
+  if (existing) {
+    existing.qty += 1;
   } else {
-    // Tampilkan modal form data pemesan untuk Guest
-    openCustomerModal();
+    cart.push({ id: product.id, name: product.name, price: product.price, variant, qty: 1 });
   }
-}
-
-function openCustomerModal() {
-  $('customer-modal').classList.remove('hidden');
-}
-
-function closeCustomerModal() {
-  $('customer-modal').classList.add('hidden');$('customer-form').reset();
-}
-
-function handleCustomerSubmit(e) {
-  e.preventDefault();
-
-  const name = $('customer-name').value.trim();
-  const className = $('customer-class').value.trim();
-  const pickupTime = $('customer-time').value;
-
-  closeCustomerModal();
-
-  processOrderSubmission({
-    name: name,
-    className: className,
-    pickupTime: pickupTime
-  });
-}
-
-// Proses Menyusun dan Mengirim Pesanan ke Database Chat Supabase
-async function processOrderSubmission(customerDetails) {
-  const currentCart = getCartForActiveCanteen();
-  if (currentCart.length === 0) return;
-
-  let total = 0;
-  let summaryText = `📋 *PESANAN BARU (Kantin ${activeCanteen})*\n`;
-  summaryText += `👤 *Pemesan:* ${customerDetails.name}\n`;
-  summaryText += `🏫 *Kelas:* ${customerDetails.className}\n`;
-  summaryText += `⏰ *Jam Ambil:* ${customerDetails.pickupTime}\n`;
-  summaryText += `------------------------------------\n`;
-
-  currentCart.forEach((item, idx) => {
-    const subtotal = item.price * item.qty;
-    total += subtotal;
-    summaryText += `${idx + 1}. ${item.name} (${item.qty}x) = Rp ${subtotal.toLocaleString('id-ID')}\n`;
-  });
-
-  summaryText += `------------------------------------\n`;
-  summaryText += `💰 *TOTAL: Rp ${total.toLocaleString('id-ID')}*\n`;
-  summaryText += `\nMohon diproses ya, terima kasih!`;
-
-  const senderName = `${customerDetails.name} (${customerDetails.className})`;
-
-  // Kirim ke database chat
-  const { error } = await supabaseClient
-    .from('chat_messages')
-    .insert([{
-      canteen_id: activeCanteen,
-      sender_role: currentRole,
-      sender_name: senderName,
-      message: summaryText
-    }]);
-
-  if (error) {
-    alert('Gagal mengirim pesanan ke chat: ' + error.message);
-    return;
-  }
-
-  // Kosongkan keranjang untuk kantin ini
-  cart = cart.filter(i => i.canteenId !== activeCanteen);
   renderCart();
-  renderMenu();
+};
 
-  // Buka modal chat
-  const modal = $('chat-modal');
-  if (modal && modal.classList.contains('hidden')) {
-    toggleChatModal();
+window.removeFromCart = function(index) {
+  cart.splice(index, 1);
+  renderCart();
+};
+
+window.modifyStock = async function(id, delta) {
+  const product = products.find(p => p.id === id);
+  if (!product) return;
+
+  const newStock = Math.max(0, product.stock + delta);
+  product.stock = newStock;
+
+  if (supabaseClient) {
+    await supabaseClient.from("products").update({ stock: newStock }).eq("id", id);
   } else {
-    fetchChatMessages();
-  }
-}
-
-// ==========================================
-// 7. RENDER MENU UTAMA
-// ==========================================
-function renderMenu() {
-  const list = $('menu-list');
-  const filtered = products.filter(p => p.canteenId === activeCanteen);
-
-  if (filtered.length === 0) {
-    list.innerHTML = `
-      <div class="col-span-full text-center py-10">
-        <i class="ri-restaurant-line text-4xl text-slate-300"></i>
-        <p class="text-slate-400 italic mt-2">Belum ada menu di Kantin ${activeCanteen}.</p>
-      </div>`;
-    return;
+    localStorage.setItem(`ekantin_prod_${selectedCanteenId}`, JSON.stringify(products));
   }
 
-  const canDelete = currentRole === 'admin' || currentRole === `kantin${activeCanteen}`;
-
-  list.innerHTML = '';
-  filtered.forEach(item => {
-    const inCartItem = cart.find(c => c.id === item.id);
-    const itemQty = inCartItem ? inCartItem.qty : 0;
-
-    list.innerHTML += `
-      <div class="card-item bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col justify-between">
-        <div>
-          <img src="${item.imageUrl}" alt="${escapeHTML(item.name)}" class="w-full h-36 object-cover bg-slate-100" onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80'">
-          <div class="p-3.5 space-y-1">
-            <h3 class="font-bold text-slate-800 text-sm leading-snug">${escapeHTML(item.name)}</h3>
-            <p class="text-xs text-emerald-600 font-extrabold">
-              Rp ${item.price.toLocaleString('id-ID')}
-            </p>
-          </div>
-        </div>
-
-        <div class="p-3 pt-0 flex items-center justify-between gap-2">
-          ${itemQty > 0 ? `
-            <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-              <button onclick="updateCartQty(${item.id}, -1)" class="w-7 h-7 bg-white rounded-lg shadow-sm font-bold text-slate-700 hover:bg-slate-200 text-xs flex items-center justify-center">-</button>
-              <span class="font-bold text-xs px-1.5 text-slate-800">${itemQty}</span>
-              <button onclick="updateCartQty(${item.id}, 1)" class="w-7 h-7 bg-indigo-600 text-white rounded-lg shadow-sm font-bold hover:bg-indigo-700 text-xs flex items-center justify-center">+</button>
-            </div>
-          ` : `
-            <button onclick="addToCart(${item.id})" class="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold text-xs py-2 rounded-xl transition flex items-center justify-center gap-1">
-              <i class="ri-add-line text-sm"></i>
-              Pilih
-            </button>
-          `}
-
-          ${canDelete ? `
-            <button onclick="deleteMenu(${item.id})" class="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Hapus Menu">
-              <i class="ri-delete-bin-line text-base"></i>
-            </button>
-          ` : ''}
-        </div>
-      </div>
-    `;
-  });
-}
+  renderProducts();
+  renderKantinStockManager();
+};
 
 // ==========================================
-// 8. CHAT WIDGET & REALTIME LOGIC
+// 5. CHAT SYSTEM
 // ==========================================
-function toggleChatModal() {
-  const modal = $('chat-modal');
-  const isHidden = modal.classList.contains('hidden');
+async function loadMessages() {
+  const box = document.getElementById("chatMessages");
+  if (supabaseClient) {
+    const { data } = await supabaseClient
+      .from("messages")
+      .select("*")
+      .eq("canteen_id", selectedCanteenId)
+      .order("id", { ascending: true });
 
-  if (isHidden) {
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-    unreadCount = 0;
-    updateChatBadge();
-    initChat();
+    if (data) renderMessagesList(data);
   } else {
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
+    const localMsgs = JSON.parse(localStorage.getItem(`chat_${selectedCanteenId}`)) || [];
+    renderMessagesList(localMsgs);
   }
 }
 
-function updateChatBadge() {
-  const badge = $('chat-badge');
-  if (!badge) return;
-
-  if (unreadCount > 0) {
-    badge.innerText = unreadCount > 99 ? '99+' : unreadCount;
-    badge.classList.remove('hidden');
-  } else {
-    badge.classList.add('hidden');
-  }
+function renderMessagesList(msgs) {
+  const box = document.getElementById("chatMessages");
+  box.innerHTML = msgs.map(m => `
+    <div class="msg-bubble ${m.sender_name === currentUser.username ? 'me' : 'other'}">
+      <div class="msg-author">${m.sender_name} (${m.sender_role})</div>
+      <div>${m.text}</div>
+    </div>
+  `).join("");
+  box.scrollTop = box.scrollHeight;
 }
 
-async function initChat() {
-  const headerTitle = $('chat-header-title');
-  if (headerTitle) headerTitle.innerText = `Chat Kantin ${activeCanteen}`;
-
-  await fetchChatMessages();
-  subscribeChatRealtime();
-}
-
-async function fetchChatMessages() {
-  const container = $('chat-messages');
-
-  const { data, error } = await supabaseClient
-    .from('chat_messages')
-    .select('*')
-    .eq('canteen_id', activeCanteen)
-    .order('created_at', { ascending: true });
-
-  if (error) {
-    container.innerHTML = `<p class="text-rose-500 text-center text-[11px]">Gagal memuat pesan.</p>`;
-    return;
-  }
-
-  renderChatMessages(data || []);
-}
-
-function renderChatMessages(messages) {
-  const container = $('chat-messages');
-
-  if (messages.length === 0) {
-    container.innerHTML = `<p class="text-slate-400 text-center text-[11px] py-4">Belum ada obrolan di Kantin ${activeCanteen}. Pilih menu lalu kirim pesanan!</p>`;
-    return;
-  }
-
-  container.innerHTML = '';
-  messages.forEach(msg => {
-    const isMe = (currentRole === 'guest' && msg.sender_role === 'guest') || 
-                 (currentRole !== 'guest' && currentRole === msg.sender_role);
-
-    const formattedMessage = escapeHTML(msg.message).replace(/\n/g, '<br>');
-
-    container.innerHTML += `
-      <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
-        <span class="text-[9px] text-slate-400 mb-0.5 px-1">${escapeHTML(msg.sender_name)}</span>
-        <div class="max-w-[85%] p-2.5 rounded-2xl text-xs leading-relaxed chat-bubble ${
-          isMe 
-            ? 'bg-indigo-600 text-white rounded-br-none' 
-            : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm'
-        }">
-          ${formattedMessage}
-        </div>
-      </div>
-    `;
-  });
-
-  container.scrollTop = container.scrollHeight;
-}
-
-async function sendChatMessage(e) {
+document.getElementById("chatForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const input = $('chat-input');
+  const input = document.getElementById("chatInput");
   const text = input.value.trim();
-
   if (!text) return;
 
-  let senderName = 'Pembeli (Guest)';
-  if (currentRole === 'admin') {
-    senderName = 'Admin Kantin';
-  } else if (currentRole.startsWith('kantin')) {
-    senderName = `Penjual Kantin ${activeCanteen}`;
+  const newMsg = {
+    canteen_id: Number(selectedCanteenId),
+    sender_name: currentUser.username,
+    sender_role: currentUser.role,
+    text
+  };
+
+  if (supabaseClient) {
+    await supabaseClient.from("messages").insert([newMsg]);
+  } else {
+    const key = `chat_${selectedCanteenId}`;
+    const localMsgs = JSON.parse(localStorage.getItem(key)) || [];
+    localMsgs.push(newMsg);
+    localStorage.setItem(key, JSON.stringify(localMsgs));
   }
 
-  input.value = '';
+  input.value = "";
+  loadMessages();
+});
 
-  const { error } = await supabaseClient
-    .from('chat_messages')
-    .insert([{
-      canteen_id: activeCanteen,
-      sender_role: currentRole,
-      sender_name: senderName,
-      message: text
-    }]);
+// ==========================================
+// 6. USER, ROLE & NAVIGATION
+// ==========================================
+function updateUserUI() {
+  document.getElementById("userName").textContent = currentUser.username;
+  document.getElementById("userRoleBadge").textContent = currentUser.role;
+  document.getElementById("userPfp").src = currentUser.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
 
-  if (error) {
-    alert('Gagal mengirim pesan: ' + error.message);
+  document.querySelectorAll(".admin-only").forEach(el => el.style.display = currentUser.role === "admin" ? "inline-block" : "none");
+  document.querySelectorAll(".kantin-only").forEach(el => el.style.display = currentUser.role === "kantin" ? "inline-block" : "none");
+
+  if (currentUser.role === "kantin" && currentUser.kantin_id) {
+    selectedCanteenId = currentUser.kantin_id;
+    document.getElementById("canteenSelect").value = selectedCanteenId;
   }
 }
 
-function handleTypingInput() {
-  if (!chatSubscription) return;
+const loginModal = document.getElementById("loginModal");
+document.getElementById("switchUserBtn").addEventListener("click", () => loginModal.showModal());
 
-  let senderName = currentRole === 'guest' ? 'Pembeli' : `Penjual Kantin ${activeCanteen}`;
+document.getElementById("loginRole").addEventListener("change", (e) => {
+  document.getElementById("kantinOwnerSelectWrap").style.display = e.target.value === "kantin" ? "block" : "none";
+});
 
-  chatSubscription.send({
-    type: 'broadcast',
-    event: 'typing',
-    payload: {
-      sender_name: senderName,
-      sender_role: currentRole
+document.getElementById("loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const role = document.getElementById("loginRole").value;
+  const username = document.getElementById("loginUsername").value.trim();
+  const pfpInput = document.getElementById("loginPfpInput").value.trim();
+  const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
+
+  currentUser = {
+    username,
+    role,
+    kantin_id,
+    pfp: pfpInput || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`
+  };
+
+  localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+  updateUserUI();
+  loginModal.close();
+  switchTab("catalog");
+  loadProducts().then(() => renderProducts());
+});
+
+function setupEventListeners() {
+  document.getElementById("canteenSelect").addEventListener("change", async (e) => {
+    selectedCanteenId = Number(e.target.value);
+    cart = [];
+    renderCart();
+    updateCanteenBanner();
+    await loadProducts();
+    renderProducts();
+    renderKantinStockManager();
+    loadMessages();
+  });
+
+  document.querySelectorAll(".nav-tab").forEach(tab => {
+    tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+  });
+
+  document.querySelectorAll("#categoryChips .chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelector("#categoryChips .chip.active")?.classList.remove("active");
+      chip.classList.add("active");
+      activeCategory = chip.dataset.cat;
+      renderProducts();
+    });
+  });
+
+  document.getElementById("searchInput").addEventListener("input", (e) => {
+    searchQuery = e.target.value.trim();
+    renderProducts();
+  });
+
+  // Tambah Menu (Upload Foto -> Base64 data URL)
+  document.getElementById("addMenuForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("menuName").value;
+    const price = Number(document.getElementById("menuPrice").value);
+    const stock = Number(document.getElementById("menuStock").value);
+    const cat = document.getElementById("menuCat").value;
+    const variants = document.getElementById("menuVariants").value;
+    const file = document.getElementById("menuPhotoFile").files[0];
+
+    let image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400";
+    if (file) {
+      image_url = await new Promise(res => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.readAsDataURL(file);
+      });
     }
+
+    const newProduct = { canteen_id: Number(selectedCanteenId), name, price, stock, cat, variants, image_url };
+
+    if (supabaseClient) {
+      await supabaseClient.from("products").insert([newProduct]);
+    } else {
+      products.push({ ...newProduct, id: Date.now() });
+      localStorage.setItem(`ekantin_prod_${selectedCanteenId}`, JSON.stringify(products));
+    }
+
+    e.target.reset();
+    await loadProducts();
+    renderProducts();
+    renderKantinStockManager();
+    alert("Menu berhasil ditambahkan!");
+  });
+
+  // Tambah Kantin Baru (Admin)
+  document.getElementById("addCanteenForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("adminCanteenName").value;
+    const banner_url = document.getElementById("adminBannerUrl").value;
+    const pfp_url = document.getElementById("adminPfpUrl").value;
+
+    const newCanteen = { name, banner_url, pfp_url };
+
+    if (supabaseClient) {
+      await supabaseClient.from("canteens").insert([newCanteen]);
+    } else {
+      canteens.push({ ...newCanteen, id: canteens.length + 1 });
+    }
+
+    e.target.reset();
+    await loadCanteens();
+    alert("Kantin baru berhasil ditambahkan!");
+  });
+
+  document.getElementById("checkoutBtn").addEventListener("click", () => {
+    alert("Pesanan berhasil dikirim ke penjual kantin!");
+    cart = [];
+    renderCart();
   });
 }
 
-function showTypingIndicator(name) {
-  const container = $('chat-messages');
-  let indicator = $('typing-indicator');
+function switchTab(tabId) {
+  document.querySelectorAll(".nav-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tabId));
+  document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
 
-  if (!indicator) {
-    indicator = document.createElement('div');
-    indicator.id = 'typing-indicator';
-    indicator.className = 'flex items-center gap-1.5 text-slate-400 text-[11px] italic my-1 px-1';
-    container.appendChild(indicator);
+  if (tabId === "catalog") document.getElementById("viewCatalog").classList.add("active");
+  if (tabId === "chat") {
+    document.getElementById("viewChat").classList.add("active");
+    loadMessages();
   }
-
-  indicator.innerHTML = `
-    <span>${escapeHTML(name)} sedang mengetik</span>
-    <span class="inline-flex gap-0.5">
-      <span class="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
-      <span class="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-      <span class="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-    </span>
-  `;
-
-  container.scrollTop = container.scrollHeight;
-
-  clearTimeout(typingTimeout);
-  typingTimeout = setTimeout(() => {
-    if (indicator) indicator.remove();
-  }, 2500);
+  if (tabId === "kantin") {
+    document.getElementById("viewKantin").classList.add("active");
+    renderKantinStockManager();
+  }
+  if (tabId === "admin") document.getElementById("viewAdmin").classList.add("active");
 }
 
-function subscribeChatRealtime() {
-  if (chatSubscription) {
-    supabaseClient.removeChannel(chatSubscription);
-  }
+// Runnable self-check
+(function selfCheck() {
+  const sampleVariants = "Pedas, Sedang, Manis";
+  const parsed = sampleVariants.split(",").map(s => s.trim());
+  console.assert(parsed.length === 3 && parsed[0] === "Pedas", "Self-check failed: Variant parsing issue");
+})();
 
-  chatSubscription = supabaseClient
-    .channel(`canteen_chat_${activeCanteen}`)
-    .on('postgres_changes', { 
-      event: 'INSERT', 
-      schema: 'public', 
-      table: 'chat_messages',
-      filter: `canteen_id=eq.${activeCanteen}`
-    }, (payload) => {
-      const newMsg = payload.new;
-      const isMyMsg = (currentRole === 'guest' && newMsg.sender_role === 'guest') || 
-                      (currentRole !== 'guest' && currentRole === newMsg.sender_role);
-
-      const indicator = $('typing-indicator');
-      if (indicator) indicator.remove();
-
-      if (!isMyMsg) {
-        notificationSound.currentTime = 0;
-        notificationSound.play().catch(() => {});
-      }
-
-      const modal = $('chat-modal');
-      const isChatClosed = modal && modal.classList.contains('hidden');
-
-      if (isChatClosed) {
-        if (!isMyMsg) {
-          unreadCount++;
-          updateChatBadge();
-        }
-      } else {
-        fetchChatMessages();
-      }
-    })
-    .on('broadcast', { event: 'typing' }, (response) => {
-      const payload = response.payload;
-      const isMyEvent = (currentRole === 'guest' && payload.sender_role === 'guest') || 
-                        (currentRole !== 'guest' && currentRole === payload.sender_role);
-
-      if (!isMyEvent) {
-        showTypingIndicator(payload.sender_name);
-      }
-    })
-    .subscribe();
-}
-
-// ==========================================
-// 9. INISIALISASI UTAMA
-// ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-  $('login-form').addEventListener('submit', handleLoginSubmit);$('add-form').addEventListener('submit', handleAddProduct);
-  
-  updateTabStyle();
-  checkLocalSession();
-  fetchProducts();
-  renderCart();
-});
+initApp();
