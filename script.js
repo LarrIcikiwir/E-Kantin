@@ -1,674 +1,890 @@
-:root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --text: #0f172a;
-  --muted: #64748b;
-  --primary: #f97316;
-  --primary-hover: #ea580c;
-  --success: #10b981;
-  --danger: #ef4444;
-  --border: #e2e8f0;
-  --radius: 14px;
-  --font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
-  --shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+// ==========================================
+// 1. SUPABASE CLIENT & CONFIGURATION
+// ==========================================
+const SUPABASE_URL = 'https://ymaqspvidhwgzwrxxbfk.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl';
+
+const supabaseClient = (typeof window !== "undefined" && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+const PASSCODES = {
+  admin: ["ADMIN#2026", "admin123"],
+  kantinMaster: "1234",
+  kantinSpecific: { 1: "KANTIN1", 2: "KANTIN2", 3: "KANTIN3", 4: "KANTIN4", 5: "KANTIN5", 6: "KANTIN6" }
+};
+
+const FALLBACK_CANTEENS = [
+  { id: 1, name: "Kantin 1 - Bu Siti (Aneka Nasi)", banner_url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siti" },
+  { id: 2, name: "Kantin 2 - Pak Joko (Mie & Bakso)", banner_url: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko" },
+  { id: 3, name: "Kantin 3 - Mbak Rini (Minuman & Kopi)", banner_url: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rini" },
+  { id: 4, name: "Kantin 4 - Mas Budi (Gorengan & Snack)", banner_url: "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Budi" },
+  { id: 5, name: "Kantin 5 - Teh Maya (Jus & Buah)", banner_url: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" },
+  { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Barang)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
+];
+
+let currentUser;
+try {
+  currentUser = JSON.parse(localStorage.getItem("ekantin_user"));
+  if (!currentUser || !currentUser.username || !currentUser.role) throw new Error();
+} catch (e) {
+  currentUser = {
+    username: "Siswa 1",
+    role: "pembeli",
+    kantin_id: null,
+    pfp: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siswa1"
+  };
+  localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+let canteens = [...FALLBACK_CANTEENS];
+let selectedCanteenId = 1;
+let products = [];
+let cart = [];
+let orders = [];
+let activeCategory = "all";
+let searchQuery = "";
+
+let activeChatContext = null;
+let chatPollInterval = null;
+
+const toRupiah = (num) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num || 0);
+
+function compressImage(file, maxWidth = 800, quality = 0.65) {
+  return new Promise((resolve) => {
+    if (!file) return resolve(null);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(null);
+    };
+    reader.onerror = () => resolve(null);
+  });
 }
 
-body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
+// ==========================================
+// 2. INITIALIZATION
+// ==========================================
+function initApp() {
+  try {
+    updateUserUI();
+    setupEventListeners();
+    populateCanteenDropdowns();
+    updateCanteenBanner();
+    renderProducts();
+    renderCart();
 
-/* Navbar */
-.navbar {
-  background: #ffffff;
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 50;
-}
-
-.nav-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0.75rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.brand-badge { font-size: 1.75rem; line-height: 1; }
-.brand h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.02em; }
-.tagline { font-size: 0.7rem; color: var(--muted); }
-
-.user-session {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  object-fit: cover;
-  background: #f1f5f9;
-  flex-shrink: 0;
-}
-.user-meta { display: flex; flex-direction: column; }
-.user-meta strong { font-size: 0.85rem; line-height: 1.2; }
-.role-badge {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--primary);
-}
-.user-btn-group {
-  display: flex;
-  gap: 0.35rem;
-}
-
-/* Secondary Navigation */
-.canteen-nav-bar {
-  background: #ffffff;
-  border-bottom: 1px solid var(--border);
-}
-.nav-tabs-wrapper {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0.5rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-.canteen-selector-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.canteen-dropdown {
-  padding: 0.45rem 0.65rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  background: #fff;
-}
-.tab-links {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-}
-.nav-tab {
-  background: transparent;
-  border: none;
-  padding: 0.45rem 0.8rem;
-  font-family: inherit;
-  font-weight: 600;
-  font-size: 0.825rem;
-  border-radius: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-.nav-tab.active, .nav-tab:hover {
-  background: var(--text);
-  color: #fff;
-}
-.tab-badge {
-  background: var(--primary);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  padding: 1px 6px;
-  font-weight: 800;
-}
-
-/* Main Content Views */
-.main-content {
-  max-width: 1200px;
-  margin: 1.25rem auto 5rem;
-  padding: 0 1rem;
-}
-.view-panel { display: none; }
-.view-panel.active { display: block; }
-
-/* Responsive Banner */
-.canteen-banner {
-  height: clamp(140px, 22vw, 220px);
-  border-radius: var(--radius);
-  background-size: cover;
-  background-position: center;
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 1.25rem;
-  box-shadow: var(--shadow);
-}
-.banner-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
-  color: #fff;
-  display: flex;
-  align-items: flex-end;
-  padding: 1rem;
-  gap: 0.85rem;
-}
-.canteen-hero-pfp {
-  width: clamp(52px, 10vw, 72px);
-  height: clamp(52px, 10vw, 72px);
-  border-radius: 50%;
-  border: 3px solid #fff;
-  background: #fff;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-.banner-text h2 {
-  font-size: clamp(1rem, 2.5vw, 1.4rem);
-  font-weight: 800;
-  line-height: 1.2;
-}
-.banner-text p {
-  font-size: clamp(0.75rem, 1.8vw, 0.85rem);
-  opacity: 0.9;
-}
-
-/* Filter Bar */
-.filter-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-.categories {
-  display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.chip {
-  padding: 0.4rem 0.85rem;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.chip.active, .chip:hover {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-.search-wrap { flex: 1; min-width: 200px; max-width: 320px; }
-.search-input {
-  width: 100%;
-  padding: 0.5rem 0.85rem;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  font-family: inherit;
-  font-size: 0.85rem;
-  outline: none;
-}
-
-/* Store & Cart Layout */
-.store-layout {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 1.25rem;
-  align-items: start;
-}
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1rem;
-}
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow);
-}
-.card-img {
-  height: 140px;
-  width: 100%;
-  object-fit: cover;
-  background: #f1f5f9;
-}
-.card-body {
-  padding: 0.85rem;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-.card-tag {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  color: var(--muted);
-  font-weight: 700;
-}
-.card-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin: 0.2rem 0 0.4rem;
-}
-.variant-select {
-  margin: 0.35rem 0 0.6rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  font-size: 0.75rem;
-  font-family: inherit;
-}
-.card-footer {
-  margin-top: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-}
-.card-price {
-  font-weight: 800;
-  color: var(--primary);
-  font-size: 0.95rem;
-}
-
-/* Cart Sidebar */
-.cart-sidebar {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  position: sticky;
-  top: 5rem;
-  box-shadow: var(--shadow);
-}
-.cart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.cart-items {
-  max-height: 300px;
-  overflow-y: auto;
-  margin: 0.85rem 0;
-}
-.empty-state {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 1.5rem 0;
-}
-.cart-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
-  border-bottom: 1px dashed var(--border);
-  padding-bottom: 0.35rem;
-}
-.total-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 1.05rem;
-  font-weight: 800;
-  margin: 0.5rem 0 0.85rem;
-}
-
-/* Mobile Bottom Sheet Cart */
-.mobile-only { display: none; }
-.mobile-cart-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #fff;
-  border-top: 1px solid var(--border);
-  padding: 0.75rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  z-index: 45;
-  box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
-}
-.mobile-cart-info { display: flex; flex-direction: column; }
-.mobile-cart-info span { font-size: 0.75rem; color: var(--muted); }
-
-/* Orders List UI */
-.max-800 { max-width: 800px; margin: 0 auto; }
-.orders-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.75rem;
-}
-.orders-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-.order-card {
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  box-shadow: var(--shadow);
-}
-.order-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-}
-.order-badge {
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-}
-.order-badge.pending {
-  background: #fef3c7;
-  color: #b45309;
-}
-.order-badge.selesai {
-  background: #d1fae5;
-  color: #065f46;
-}
-.order-items-detail {
-  font-size: 0.85rem;
-  color: var(--muted);
-  border-top: 1px dashed var(--border);
-  border-bottom: 1px dashed var(--border);
-  padding: 0.5rem 0;
-}
-.order-foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-.order-actions-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Profile Modal Area */
-.profile-preview-area {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.75rem;
-}
-.profile-large-avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  border: 2px solid var(--border);
-  object-fit: cover;
-  background: #f1f5f9;
-}
-
-/* Chat Integrated in Modal */
-.chat-modal-box {
-  max-width: 480px;
-  width: 95vw;
-  padding: 1rem !important;
-  display: flex;
-  flex-direction: column;
-}
-.modal-chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 0.6rem;
-}
-.modal-chat-body {
-  height: 380px !important;
-  overflow-y: auto;
-  padding: 0.85rem 0.25rem !important;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.msg-bubble {
-  max-width: 82%;
-  padding: 0.55rem 0.8rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-}
-.msg-bubble.me {
-  align-self: flex-end;
-  background: var(--primary);
-  color: #fff;
-  border-bottom-right-radius: 2px;
-}
-.msg-bubble.other {
-  align-self: flex-start;
-  background: #f1f5f9;
-  border-bottom-left-radius: 2px;
-}
-.msg-author { font-size: 0.68rem; font-weight: bold; margin-bottom: 2px; }
-.chat-form {
-  display: flex;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
-  gap: 0.5rem;
-}
-.chat-form input {
-  flex: 1;
-  padding: 0.55rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  font-family: inherit;
-  outline: none;
-}
-
-/* Dashboards */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 1.25rem;
-}
-.dash-column {
-  display: flex;
-  flex-direction: column;
-}
-.dash-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.25rem;
-  box-shadow: var(--shadow);
-}
-.max-600 { max-width: 600px; margin: 0 auto; }
-.form-stack { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem; }
-.form-stack label { display: flex; flex-direction: column; font-size: 0.8rem; font-weight: 600; gap: 0.3rem; }
-.form-stack input, .form-stack select {
-  padding: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: inherit;
-}
-.file-input { padding: 0.35rem !important; font-size: 0.8rem; background: #f8fafc; }
-.form-row { display: flex; gap: 0.5rem; }
-.stock-manager-list { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 0.75rem; }
-.stock-item-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.6rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  gap: 0.5rem;
-}
-.stock-ctrl { display: flex; align-items: center; gap: 0.4rem; }
-.stock-btn {
-  width: 28px;
-  height: 28px;
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-}
-.btn-trash {
-  background: #fee2e2;
-  color: #ef4444;
-  border: 1px solid #fca5a5;
-  padding: 0.3rem 0.55rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: bold;
-}
-.btn-trash:hover {
-  background: #fecaca;
-}
-
-/* Buttons */
-.btn-primary {
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  padding: 0.55rem 0.95rem;
-  border-radius: 8px;
-  font-family: inherit;
-  font-weight: 700;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-success {
-  background: var(--success);
-  color: #fff;
-  border: none;
-  padding: 0.45rem 0.85rem;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.btn-chat {
-  background: #f1f5f9;
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 0.45rem 0.85rem;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.btn-chat:hover { background: #e2e8f0; }
-.btn-secondary {
-  padding: 0.55rem 0.95rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: #fff;
-  font-family: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.btn-outline {
-  background: #fff;
-  border: 1px solid var(--border);
-}
-.btn-sm {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  cursor: pointer;
-}
-.btn-ghost {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-/* Modals */
-.modal { margin: auto; border: none; background: transparent; }
-.modal::backdrop { background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); }
-.modal-box {
-  background: #fff;
-  padding: 1.5rem;
-  border-radius: var(--radius);
-  max-width: 380px;
-  width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.modal-desc { font-size: 0.8rem; color: var(--muted); margin: 0.2rem 0 0.65rem; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
-
-/* Responsive */
-@media (max-width: 860px) {
-  .store-layout, .dashboard-grid { grid-template-columns: 1fr; }
-  .mobile-only { display: flex; }
-  .cart-sidebar {
-    position: fixed;
-    bottom: 0; left: 0; right: 0; top: auto;
-    z-index: 60;
-    border-radius: 20px 20px 0 0;
-    box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
-    display: none;
-    max-height: 80vh;
+    syncSupabaseData();
+  } catch (err) {
+    console.error("InitApp error:", err);
   }
-  .cart-sidebar.open { display: block; }
-  .nav-tabs-wrapper { flex-direction: column; align-items: stretch; }
-  .canteen-selector-wrap { width: 100%; justify-content: space-between; }
-  .canteen-dropdown { max-width: 100%; flex: 1; }
-  .tab-links { width: 100%; }
 }
 
-@media (max-width: 520px) {
-  .product-grid { grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
-  .card-img { height: 110px; }
-  .card-body { padding: 0.65rem; }
-  .card-title { font-size: 0.85rem; }
-  .card-price { font-size: 0.85rem; }
-  .btn-primary { padding: 0.45rem 0.65rem; font-size: 0.78rem; }
+async function syncSupabaseData() {
+  if (!supabaseClient) return;
+  try {
+    await loadCanteens();
+    await loadProducts();
+    await loadOrders();
+    renderProducts();
+    renderOrders();
+  } catch (err) {
+    console.warn("Gagal sync Supabase:", err);
+  }
 }
+
+function populateCanteenDropdowns() {
+  const select = document.getElementById("canteenSelect");
+  const loginSelect = document.getElementById("loginKantinId");
+  if (select) {
+    select.innerHTML = canteens.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+    select.value = selectedCanteenId;
+  }
+  if (loginSelect) {
+    loginSelect.innerHTML = canteens.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+  }
+}
+
+async function loadCanteens() {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient.from("canteens").select("*").order("id", { ascending: true });
+    if (!error && data && data.length > 0) {
+      canteens = data;
+      populateCanteenDropdowns();
+      updateCanteenBanner();
+    }
+  } catch (e) {}
+}
+
+async function loadProducts() {
+  products = [];
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from("products")
+      .select("*")
+      .eq("canteen_id", Number(selectedCanteenId))
+      .order("id", { ascending: false });
+
+    if (!error && data) {
+      products = data;
+    }
+  } catch (err) {}
+}
+
+// ==========================================
+// 3. PESANAN (CHECKOUT, CANCEL & SELESAI)
+// ==========================================
+async function handleCheckout() {
+  if (cart.length === 0) return;
+  const btn = document.getElementById("checkoutBtn");
+  btn.disabled = true;
+  btn.textContent = "Memproses...";
+
+  const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  const newOrder = {
+    canteen_id: Number(selectedCanteenId),
+    buyer_username: currentUser.username,
+    items: cart,
+    total: totalAmount,
+    status: 'pending'
+  };
+
+  try {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from("orders").insert([newOrder]);
+      if (error) throw new Error(error.message);
+    }
+
+    alert(`Pesanan senilai ${toRupiah(totalAmount)} BERHASIL DIBUAT!\nLihat pesanan Anda di tab "Pesanan".`);
+    cart = [];
+    renderCart();
+    document.getElementById("cartSidebar").classList.remove("open");
+    await loadOrders();
+    switchTab("orders");
+  } catch (err) {
+    alert("Gagal membuat pesanan: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Beli Sekarang";
+  }
+}
+
+async function loadOrders() {
+  orders = [];
+  if (supabaseClient) {
+    try {
+      let query = supabaseClient.from("orders").select("*").order("id", { ascending: false });
+
+      if (currentUser.role === "kantin") {
+        query = query.eq("canteen_id", Number(selectedCanteenId));
+      } else if (currentUser.role === "pembeli") {
+        query = query.eq("buyer_username", currentUser.username);
+      }
+
+      const { data, error } = await query;
+      if (!error && data) {
+        orders = data;
+      }
+    } catch (e) {
+      console.warn("Load orders error:", e);
+    }
+  }
+  renderOrders();
+}
+
+function renderOrders() {
+  const container = document.getElementById("ordersList");
+  if (!container) return;
+  const badge = document.getElementById("ordersCountBadge");
+  const pendingOrders = orders.filter(o => o.status === "pending");
+
+  if (badge) {
+    badge.textContent = pendingOrders.length;
+    badge.style.display = pendingOrders.length > 0 ? "inline-block" : "none";
+  }
+
+  if (orders.length === 0) {
+    container.innerHTML = `<p class="empty-state">Belum ada riwayat pesanan.</p>`;
+    return;
+  }
+
+  container.innerHTML = orders.map(o => {
+    const isKantin = currentUser.role === "kantin" || currentUser.role === "admin";
+    const isPending = o.status === "pending";
+    const canteenObj = canteens.find(c => c.id === Number(o.canteen_id)) || { name: `Kantin ${o.canteen_id}` };
+    const itemsText = Array.isArray(o.items)
+      ? o.items.map(i => `${i.name} (${i.variant || 'Normal'}) x${i.qty}`).join(", ")
+      : "Rincian pesanan";
+
+    let statusLabel = '⏳ Sedang Disiapkan';
+    if (o.status === 'selesai') statusLabel = '✅ Selesai';
+    if (o.status === 'dibatalkan') statusLabel = '❌ Dibatalkan';
+
+    return `
+      <div class="order-card">
+        <div class="order-head">
+          <div>
+            <strong>#ORD-${o.id} • ${canteenObj.name}</strong>
+            <div style="font-size:0.75rem; color:var(--muted);">Pembeli: ${o.buyer_username}</div>
+          </div>
+          <span class="order-badge ${o.status}">${statusLabel}</span>
+        </div>
+        <div class="order-items-detail">${itemsText}</div>
+        <div class="order-foot">
+          <div>Total: <strong style="color:var(--primary);">${toRupiah(o.total)}</strong></div>
+          <div class="order-actions-wrap">
+            ${isPending ? `
+              <button class="btn-chat" onclick="openOrderChat(${o.canteen_id}, '${o.buyer_username}', '#ORD-${o.id} - ${canteenObj.name}')">
+                💬 Chat ${isKantin ? 'Pembeli' : 'Kantin'}
+              </button>
+            ` : `<small style="color:var(--muted); font-size:0.75rem;">Chat ditutup</small>`}
+
+            <!-- Tombol untuk Penjual: Selesaikan & Batalkan -->
+            ${(isKantin && isPending) ? `
+              <button class="btn-success" onclick="completeOrder(${o.id}, ${o.canteen_id}, '${o.buyer_username}')">
+                ✅ Selesaikan
+              </button>
+              <button class="btn-cancel" onclick="cancelOrder(${o.id}, ${o.canteen_id}, '${o.buyer_username}', 'kantin')">
+                ❌ Batalkan
+              </button>
+            ` : ''}
+
+            <!-- Tombol untuk Pembeli: Batalkan Sendiri -->
+            ${(!isKantin && isPending) ? `
+              <button class="btn-cancel" onclick="cancelOrder(${o.id}, ${o.canteen_id}, '${o.buyer_username}', 'pembeli')">
+                ❌ Batalkan Pesanan
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// 1. Selesaikan Pesanan (Penjual)
+window.completeOrder = async function(orderId, canteenId, buyerUsername) {
+  if (!confirm(`Selesaikan pesanan #ORD-${orderId}? Chat obrolan seputar pesanan ini akan dibersihkan otomatis.`)) return;
+  try {
+    if (supabaseClient) {
+      await supabaseClient.from("orders").update({ status: "selesai" }).eq("id", orderId);
+      await supabaseClient.from("messages").delete().eq("canteen_id", Number(canteenId)).eq("buyer_username", buyerUsername);
+    }
+    alert(`Pesanan #ORD-${orderId} selesai! Riwayat chat telah dibersihkan.`);
+    await loadOrders();
+    document.getElementById("orderChatModal").close();
+  } catch (err) {
+    alert("Gagal menyelesaikan pesanan: " + err.message);
+  }
+};
+
+// 2. BATALKAN PESANAN (Pembeli & Penjual)
+window.cancelOrder = async function(orderId, canteenId, buyerUsername, cancelledBy) {
+  const actor = cancelledBy === 'kantin' ? 'Tolak / batalkan' : 'Batalkan';
+  if (!confirm(`Yakin ingin ${actor} pesanan #ORD-${orderId}? Obrolan chat terkait pesanan ini juga akan dibersihkan.`)) return;
+
+  try {
+    if (supabaseClient) {
+      // Update status pesanan menjadi dibatalkan
+      const { error } = await supabaseClient
+        .from("orders")
+        .update({ status: "dibatalkan" })
+        .eq("id", orderId);
+
+      if (error) throw new Error(error.message);
+
+      // Bersihkan chat obrolan terkait pesanan yang dibatalkan
+      await supabaseClient
+        .from("messages")
+        .delete()
+        .eq("canteen_id", Number(canteenId))
+        .eq("buyer_username", buyerUsername);
+    }
+
+    alert(`Pesanan #ORD-${orderId} berhasil dibatalkan.`);
+    await loadOrders();
+    
+    // Tutup modal chat jika sedang terbuka
+    if (document.getElementById("orderChatModal").open) {
+      document.getElementById("orderChatModal").close();
+    }
+  } catch (err) {
+    alert("Gagal membatalkan pesanan: " + err.message);
+  }
+};
+
+// ==========================================
+// 4. CHAT DUA ARAH REAL-TIME
+// ==========================================
+window.openOrderChat = function(canteenId, buyerUsername, title) {
+  activeChatContext = { canteenId: Number(canteenId), buyerUsername, title };
+  document.getElementById("orderChatModalTitle").textContent = `💬 ${title}`;
+  document.getElementById("orderChatModalDesc").textContent = `Obrolan antara ${buyerUsername} dan Kantin`;
+  document.getElementById("orderChatModal").showModal();
+
+  loadOrderChatMessages();
+
+  if (chatPollInterval) clearInterval(chatPollInterval);
+  chatPollInterval = setInterval(loadOrderChatMessages, 1500);
+};
+
+function closeOrderChat() {
+  document.getElementById("orderChatModal").close();
+  if (chatPollInterval) {
+    clearInterval(chatPollInterval);
+    chatPollInterval = null;
+  }
+  activeChatContext = null;
+}
+
+document.getElementById("closeOrderChatBtn")?.addEventListener("click", closeOrderChat);
+
+async function loadOrderChatMessages() {
+  if (!activeChatContext || !supabaseClient) return;
+  const box = document.getElementById("orderChatMessages");
+  let msgs = [];
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("messages")
+      .select("*")
+      .eq("canteen_id", activeChatContext.canteenId)
+      .eq("buyer_username", activeChatContext.buyerUsername)
+      .order("id", { ascending: true });
+
+    if (!error && data) msgs = data;
+  } catch (e) {
+    console.warn("Gagal load pesan:", e);
+  }
+
+  if (msgs.length === 0) {
+    box.innerHTML = `<p class="empty-state">Belum ada pesan. Sapa sekarang!</p>`;
+    return;
+  }
+
+  const isScrolledToBottom = box.scrollHeight - box.clientHeight <= box.scrollTop + 50;
+
+  box.innerHTML = msgs.map(m => `
+    <div class="msg-bubble ${m.sender_name === currentUser.username ? 'me' : 'other'}">
+      <div class="msg-author">${m.sender_name} (${m.sender_role})</div>
+      <div>${m.text}</div>
+    </div>
+  `).join("");
+
+  if (isScrolledToBottom) {
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+document.getElementById("orderChatForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!activeChatContext) return;
+  const input = document.getElementById("orderChatInput");
+  const text = input.value.trim();
+  if (!text) return;
+
+  const newMsg = {
+    canteen_id: activeChatContext.canteenId,
+    buyer_username: activeChatContext.buyerUsername,
+    sender_name: currentUser.username,
+    sender_role: currentUser.role,
+    text
+  };
+
+  input.value = "";
+
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("messages").insert([newMsg]);
+    if (error) {
+      alert("Gagal mengirim chat ke Supabase: " + error.message);
+      return;
+    }
+  }
+
+  await loadOrderChatMessages();
+  const box = document.getElementById("orderChatMessages");
+  box.scrollTop = box.scrollHeight;
+});
+
+// ==========================================
+// 5. RENDERING CATALOG & CART
+// ==========================================
+function updateCanteenBanner() {
+  const current = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
+  if (!current) return;
+  const bannerEl = document.getElementById("canteenBanner");
+  if (bannerEl) bannerEl.style.backgroundImage = `url('${current.banner_url}')`;
+  const pfpEl = document.getElementById("canteenPfp");
+  if (pfpEl) pfpEl.src = current.pfp_url;
+  const titleEl = document.getElementById("canteenTitle");
+  if (titleEl) titleEl.textContent = current.name;
+}
+
+function renderProducts() {
+  const grid = document.getElementById("productGrid");
+  if (!grid) return;
+
+  const filtered = products.filter(p => {
+    const matchCat = activeCategory === "all" || p.cat === activeCategory;
+    const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCat && matchSearch;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada menu di kantin ini. Masuk sebagai kantin untuk menambahkan menu!</p>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(item => {
+    const variantList = item.variants ? item.variants.split(",").map(v => v.trim()).filter(Boolean) : [];
+    const variantOptions = variantList.map(v => `<option value="${v}">${v}</option>`).join("");
+    const isOutOfStock = item.stock <= 0;
+
+    return `
+      <article class="card">
+        <img class="card-img" src="${item.image_url || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=400'}" alt="${item.name}" loading="lazy" />
+        <div class="card-body">
+          <span class="card-tag">${item.cat} • Stok: ${item.stock}</span>
+          <h3 class="card-title">${item.name}</h3>
+          ${variantList.length > 0 ? `<select class="variant-select" id="variant_${item.id}">${variantOptions}</select>` : ''}
+          <div class="card-footer">
+            <span class="card-price">${toRupiah(item.price)}</span>
+            <button class="btn-primary" ${isOutOfStock ? "disabled" : ""} onclick="handleAddToCart(${item.id})">
+              ${isOutOfStock ? "Habis" : "+ Beli"}
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderCart() {
+  const container = document.getElementById("cartItems");
+  const totalEl = document.getElementById("cartTotalPrice");
+  const btn = document.getElementById("checkoutBtn");
+  const mobileBadge = document.getElementById("mobileCartBadge");
+  const mobileTotal = document.getElementById("mobileCartTotal");
+
+  const totalQty = cart.reduce((acc, i) => acc + i.qty, 0);
+  const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+
+  if (totalEl) totalEl.textContent = toRupiah(totalAmount);
+  if (mobileTotal) mobileTotal.textContent = toRupiah(totalAmount);
+  if (mobileBadge) mobileBadge.textContent = `${totalQty} Item`;
+  if (btn) btn.disabled = cart.length === 0;
+
+  if (!container) return;
+  if (cart.length === 0) {
+    container.innerHTML = `<p class="empty-state">Keranjang kosong.</p>`;
+    return;
+  }
+
+  container.innerHTML = cart.map((i, idx) => `
+    <div class="cart-row">
+      <div>
+        <strong>${i.name}</strong>
+        ${i.variant ? `<div style="font-size: 0.75rem; color: var(--muted);">${i.variant}</div>` : ""}
+        <div>${i.qty} x ${toRupiah(i.price)}</div>
+      </div>
+      <button class="btn-sm" onclick="removeFromCart(${idx})">Hapus</button>
+    </div>
+  `).join("");
+}
+
+function renderKantinStockManager() {
+  const container = document.getElementById("kantinMenuList");
+  if (!container) return;
+  if (!products.length) {
+    container.innerHTML = `<p class="empty-state">Belum ada menu di kantin ini. Tambahkan di form sebelah kiri.</p>`;
+    return;
+  }
+  container.innerHTML = products.map(item => `
+    <div class="stock-item-row">
+      <div>
+        <strong>${item.name}</strong>
+        <div style="font-size: 0.75rem; color: var(--muted);">${toRupiah(item.price)} (${item.cat})</div>
+      </div>
+      <div class="stock-ctrl">
+        <button class="stock-btn" onclick="modifyStock(${item.id}, -1)">-</button>
+        <strong>${item.stock}</strong>
+        <button class="stock-btn" onclick="modifyStock(${item.id}, 1)">+</button>
+        <button class="btn-trash" onclick="deleteProduct(${item.id})" title="Hapus Menu Permanen">🗑️ Hapus</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ==========================================
+// 6. USER UI & MODAL PROFIL
+// ==========================================
+function updateUserUI() {
+  const nameEl = document.getElementById("userName");
+  const roleEl = document.getElementById("userRoleBadge");
+  const pfpEl = document.getElementById("userPfp");
+
+  if (nameEl) nameEl.textContent = currentUser.username;
+  if (roleEl) roleEl.textContent = currentUser.role;
+  if (pfpEl) pfpEl.src = currentUser.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
+
+  document.querySelectorAll(".admin-only").forEach(el => el.style.display = currentUser.role === "admin" ? "inline-block" : "none");
+  document.querySelectorAll(".kantin-only").forEach(el => el.style.display = currentUser.role === "kantin" ? "inline-block" : "none");
+
+  if (currentUser.role === "kantin" && currentUser.kantin_id) {
+    selectedCanteenId = currentUser.kantin_id;
+    const select = document.getElementById("canteenSelect");
+    if (select) select.value = selectedCanteenId;
+  }
+}
+
+function openProfileModal() {
+  document.getElementById("profileCurrentPfp").src = currentUser.pfp;
+  document.getElementById("profileCurrentName").textContent = currentUser.username;
+  document.getElementById("profileCurrentRole").textContent = (currentUser.role || "pembeli").toUpperCase();
+  document.getElementById("profileModal").showModal();
+}
+
+// ==========================================
+// 7. ACTIONS (HAPUS MENU & STOK)
+// ==========================================
+window.handleAddToCart = function(id) {
+  const product = products.find(p => p.id === id);
+  if (!product || product.stock <= 0) return;
+  const variantSelect = document.getElementById(`variant_${id}`);
+  const variant = variantSelect ? variantSelect.value : "";
+  const existing = cart.find(c => c.id === id && c.variant === variant);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    cart.push({ id: product.id, name: product.name, price: product.price, variant, qty: 1 });
+  }
+  renderCart();
+};
+
+window.removeFromCart = function(index) {
+  cart.splice(index, 1);
+  renderCart();
+};
+
+window.modifyStock = async function(id, delta) {
+  const product = products.find(p => p.id === id);
+  if (!product) return;
+  product.stock = Math.max(0, product.stock + delta);
+  if (supabaseClient) {
+    try { await supabaseClient.from("products").update({ stock: product.stock }).eq("id", id); } catch(e){}
+  }
+  renderProducts();
+  renderKantinStockManager();
+};
+
+window.deleteProduct = async function(id) {
+  const prod = products.find(p => p.id === id);
+  if (!confirm(`Yakin ingin menghapus menu "${prod ? prod.name : ''}" secara permanen?`)) return;
+
+  try {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from("products").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    }
+    products = products.filter(p => p.id !== id);
+    renderProducts();
+    renderKantinStockManager();
+    alert("Menu berhasil dihapus!");
+  } catch (err) {
+    alert("Gagal menghapus menu: " + err.message);
+  }
+};
+
+function setupEventListeners() {
+  // Mobile Cart
+  const cartSidebar = document.getElementById("cartSidebar");
+  document.getElementById("openCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.add("open"));
+  document.getElementById("closeCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.remove("open"));
+
+  // Modal Profil & Login
+  document.getElementById("openProfileBtn")?.addEventListener("click", openProfileModal);
+  document.getElementById("closeProfileBtn")?.addEventListener("click", () => document.getElementById("profileModal").close());
+  document.getElementById("switchUserBtn")?.addEventListener("click", () => document.getElementById("loginModal").showModal());
+  document.getElementById("cancelLoginBtn")?.addEventListener("click", () => document.getElementById("loginModal").close());
+
+  // Ganti Kantin
+  document.getElementById("canteenSelect")?.addEventListener("change", async (e) => {
+    selectedCanteenId = Number(e.target.value);
+    cart = [];
+    renderCart();
+    updateCanteenBanner();
+    await loadProducts();
+    await loadOrders();
+    renderProducts();
+    renderKantinStockManager();
+  });
+
+  // Navigasi Tab
+  document.querySelectorAll(".nav-tab").forEach(tab => {
+    tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+  });
+
+  // Filter Kategori
+  document.querySelectorAll("#categoryChips .chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelector("#categoryChips .chip.active")?.classList.remove("active");
+      chip.classList.add("active");
+      activeCategory = chip.dataset.cat;
+      renderProducts();
+    });
+  });
+
+  // Search
+  document.getElementById("searchInput")?.addEventListener("input", (e) => {
+    searchQuery = e.target.value.trim();
+    renderProducts();
+  });
+
+  // Checkout & Refresh Orders
+  document.getElementById("checkoutBtn")?.addEventListener("click", handleCheckout);
+  document.getElementById("refreshOrdersBtn")?.addEventListener("click", () => loadOrders());
+
+  // Ganti Banner Kantin
+  document.getElementById("updateCanteenBannerForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSaveBanner");
+    btn.disabled = true;
+    btn.textContent = "Mengunggah...";
+
+    try {
+      const file = document.getElementById("kantinBannerFile").files[0];
+      if (!file) throw new Error("Pilih foto banner terlebih dahulu");
+
+      const compressed = await compressImage(file, 900, 0.65);
+      if (!compressed) throw new Error("Gagal memproses gambar");
+
+      const targetCanteenId = Number(selectedCanteenId);
+
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from("canteens").update({ banner_url: compressed }).eq("id", targetCanteenId);
+        if (error) throw new Error(error.message);
+      }
+
+      const target = canteens.find(c => c.id === targetCanteenId);
+      if (target) target.banner_url = compressed;
+
+      updateCanteenBanner();
+      alert("Banner kantin berhasil diperbarui!");
+      e.target.reset();
+    } catch (err) {
+      alert("Gagal update banner: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan Banner";
+    }
+  });
+
+  // Form Login
+  document.getElementById("loginRole")?.addEventListener("change", (e) => {
+    const role = e.target.value;
+    document.getElementById("kantinOwnerSelectWrap").style.display = role === "kantin" ? "block" : "none";
+    const hintEl = document.getElementById("passcodeHint");
+    if (role === "admin") hintEl.textContent = "Kode Admin: ADMIN#2026 atau admin123";
+    else if (role === "kantin") hintEl.textContent = "Kode Kantin: KANTIN1..KANTIN6 atau PIN 1234";
+    else hintEl.textContent = "Pembeli: Bebas / PIN 1234";
+  });
+
+  document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const role = document.getElementById("loginRole").value;
+    const username = document.getElementById("loginUsername").value.trim();
+    const passcode = document.getElementById("loginPasscode").value.trim();
+    const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
+
+    if (role === "admin" && !PASSCODES.admin.includes(passcode)) {
+      alert("Kode Admin SALAH! Gunakan: ADMIN#2026");
+      return;
+    }
+    if (role === "kantin") {
+      const validCode = PASSCODES.kantinSpecific[kantin_id];
+      if (passcode !== validCode && passcode !== PASSCODES.kantinMaster) {
+        alert(`Kode Kantin SALAH! Gunakan PIN "${validCode}" atau "1234"`);
+        return;
+      }
+    }
+
+    let finalPfp = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+    if (supabaseClient) {
+      try {
+        const { data: existingUser } = await supabaseClient.from("users").select("*").eq("username", username).maybeSingle();
+        if (existingUser) {
+          finalPfp = existingUser.pfp_url || finalPfp;
+        } else {
+          await supabaseClient.from("users").insert([{ username, role, passcode, kantin_id, pfp_url: finalPfp }]);
+        }
+      } catch (err) {}
+    }
+
+    currentUser = { username, role, kantin_id, pfp: finalPfp };
+    localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+    updateUserUI();
+    document.getElementById("loginModal").close();
+    alert(`Berhasil masuk sebagai ${username}!`);
+
+    if (role === "kantin") switchTab("kantin");
+    else if (role === "admin") switchTab("admin");
+    else switchTab("catalog");
+
+    await loadProducts();
+    await loadOrders();
+    renderProducts();
+  });
+
+  // Form Pengaturan Profil
+  document.getElementById("updateProfileForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSaveProfile");
+    btn.disabled = true;
+    btn.textContent = "Mengunggah...";
+
+    try {
+      const file = document.getElementById("updatePfpFile").files[0];
+      if (!file) throw new Error("Pilih foto terlebih dahulu");
+
+      const compressed = await compressImage(file, 250, 0.6);
+      currentUser.pfp = compressed;
+      localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+
+      if (supabaseClient) {
+        await supabaseClient.from("users").update({ pfp_url: compressed }).eq("username", currentUser.username);
+      }
+
+      updateUserUI();
+      document.getElementById("profileCurrentPfp").src = compressed;
+      alert("Foto profil berhasil diperbarui!");
+      document.getElementById("profileModal").close();
+      e.target.reset();
+    } catch (err) {
+      alert("Gagal update profil: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan Foto Profil";
+    }
+  });
+
+  // Form Tambah Menu
+  document.getElementById("addMenuForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSubmitMenu");
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+
+    try {
+      const name = document.getElementById("menuName").value.trim();
+      const price = Number(document.getElementById("menuPrice").value);
+      const stock = Number(document.getElementById("menuStock").value);
+      const cat = document.getElementById("menuCat").value;
+      const variants = document.getElementById("menuVariants").value.trim();
+      const file = document.getElementById("menuPhotoFile").files[0];
+
+      let image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400";
+      if (file) {
+        const comp = await compressImage(file, 500, 0.6);
+        if (comp) image_url = comp;
+      }
+
+      const targetCanteenId = (currentUser.role === "kantin" && currentUser.kantin_id)
+        ? Number(currentUser.kantin_id)
+        : Number(selectedCanteenId);
+
+      const newProduct = { canteen_id: targetCanteenId, name, price, stock, cat, variants, image_url };
+
+      if (supabaseClient) {
+        const { error } = await supabaseClient.from("products").insert([newProduct]);
+        if (error) throw new Error(error.message);
+      }
+
+      selectedCanteenId = targetCanteenId;
+      document.getElementById("canteenSelect").value = targetCanteenId;
+      activeCategory = "all";
+      document.querySelectorAll("#categoryChips .chip").forEach((c, idx) => c.classList.toggle("active", idx === 0));
+
+      e.target.reset();
+      await loadProducts();
+      renderProducts();
+      renderKantinStockManager();
+      alert(`Menu "${name}" berhasil disimpan!`);
+      switchTab("catalog");
+    } catch (err) {
+      alert("Gagal simpan menu: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan Menu";
+    }
+  });
+
+  // Form Tambah Kantin (Admin)
+  document.getElementById("addCanteenForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSubmitCanteen");
+    btn.disabled = true;
+
+    try {
+      const name = document.getElementById("adminCanteenName").value;
+      const bannerFile = document.getElementById("adminBannerFile").files[0];
+      const pfpFile = document.getElementById("adminPfpFile").files[0];
+
+      let banner_url = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800";
+      let pfp_url = "https://api.dicebear.com/7.x/bottts/svg?seed=canteen";
+
+      if (bannerFile) banner_url = (await compressImage(bannerFile, 800, 0.6)) || banner_url;
+      if (pfpFile) pfp_url = (await compressImage(pfpFile, 250, 0.6)) || pfp_url;
+
+      const newCanteen = { name, banner_url, pfp_url };
+
+      if (supabaseClient) {
+        await supabaseClient.from("canteens").insert([newCanteen]);
+      }
+      canteens.push({ ...newCanteen, id: canteens.length + 1 });
+      populateCanteenDropdowns();
+      alert("Kantin baru berhasil ditambahkan!");
+      e.target.reset();
+    } catch (err) {
+      alert("Gagal menambah kantin: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll(".nav-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tabId));
+  document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+
+  if (tabId === "catalog") document.getElementById("viewCatalog").classList.add("active");
+  if (tabId === "orders") {
+    document.getElementById("viewOrders").classList.add("active");
+    loadOrders();
+  }
+  if (tabId === "kantin") {
+    document.getElementById("viewKantin").classList.add("active");
+    renderKantinStockManager();
+  }
+  if (tabId === "admin") document.getElementById("viewAdmin").classList.add("active");
+}
+
+initApp();
