@@ -8,7 +8,12 @@ const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
 
-// Fallback 6 Kantin jika offline / belum ada data
+const PASSCODES = {
+  admin: ["ADMIN#2026", "admin123"],
+  kantinMaster: "1234",
+  kantinSpecific: { 1: "KANTIN1", 2: "KANTIN2", 3: "KANTIN3", 4: "KANTIN4", 5: "KANTIN5", 6: "KANTIN6" }
+};
+
 const FALLBACK_CANTEENS = [
   { id: 1, name: "Kantin 1 - Bu Siti (Aneka Nasi)", banner_url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siti" },
   { id: 2, name: "Kantin 2 - Pak Joko (Mie & Bakso)", banner_url: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko" },
@@ -18,7 +23,7 @@ const FALLBACK_CANTEENS = [
   { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Barang)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
 ];
 
-// State
+// App State
 let currentUser = JSON.parse(localStorage.getItem("ekantin_user")) || {
   username: "Siswa 1",
   role: "pembeli",
@@ -29,19 +34,17 @@ let currentUser = JSON.parse(localStorage.getItem("ekantin_user")) || {
 let canteens = [];
 let selectedCanteenId = 1;
 let products = [];
-let cart = []; // [{ id, name, price, variant, qty }]
+let cart = [];
 let activeCategory = "all";
 let searchQuery = "";
+let activeChatBuyer = ""; // Menentukan pembeli mana yang sedang aktif di chat room
 
 const toRupiah = (num) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
 
-// ==========================================
-// 2. HELPER: KOMPRESI GAMBAR KE BASE64
-// Mengubah foto besar kamera HP jadi ringan (±30KB-60KB)
-// ==========================================
-function compressImage(file, maxWidth = 800, quality = 0.7) {
-  return new Promise((resolve, reject) => {
+// Helper kompresi gambar ringan
+function compressImage(file, maxWidth = 600, quality = 0.6) {
+  return new Promise((resolve) => {
     if (!file) return resolve(null);
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -52,27 +55,24 @@ function compressImage(file, maxWidth = 800, quality = 0.7) {
         const canvas = document.createElement("canvas");
         let width = img.width;
         let height = img.height;
-
         if (width > maxWidth) {
           height = Math.round((height * maxWidth) / width);
           width = maxWidth;
         }
-
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, width, height);
-
         resolve(canvas.toDataURL("image/jpeg", quality));
       };
-      img.onerror = (err) => reject(err);
+      img.onerror = () => resolve(null);
     };
-    reader.onerror = (err) => reject(err);
+    reader.onerror = () => resolve(null);
   });
 }
 
 // ==========================================
-// 3. INITIALIZATION & DATA FETCHING
+// 2. INITIALIZATION
 // ==========================================
 async function initApp() {
   updateUserUI();
@@ -81,13 +81,19 @@ async function initApp() {
   setupEventListeners();
   renderProducts();
   renderCart();
-  loadMessages();
+  setupChatView();
 }
 
 async function loadCanteens() {
   if (supabaseClient) {
-    const { data, error } = await supabaseClient.from("canteens").select("*").order("id", { ascending: true });
-    canteens = (!error && data?.length) ? data : FALLBACK_CANTEENS;
+    try {
+      const { data, error } = await supabaseClient.from("canteens").select("*").order("id", { ascending: true });
+      if (error) throw error;
+      canteens = (data && data.length > 0) ? data : FALLBACK_CANTEENS;
+    } catch (err) {
+      console.warn("Pakai fallback canteens:", err.message);
+      canteens = FALLBACK_CANTEENS;
+    }
   } else {
     canteens = FALLBACK_CANTEENS;
   }
@@ -103,20 +109,26 @@ async function loadCanteens() {
 
 async function loadProducts() {
   if (supabaseClient) {
-    const { data, error } = await supabaseClient
-      .from("products")
-      .select("*")
-      .eq("canteen_id", selectedCanteenId)
-      .order("id", { ascending: false });
+    try {
+      const { data, error } = await supabaseClient
+        .from("products")
+        .select("*")
+        .eq("canteen_id", Number(selectedCanteenId))
+        .order("id", { ascending: false });
 
-    products = (!error && data) ? data : [];
+      if (error) throw error;
+      products = data || [];
+    } catch (err) {
+      console.error("Gagal load products:", err.message);
+      products = JSON.parse(localStorage.getItem(`ekantin_prod_${selectedCanteenId}`)) || [];
+    }
   } else {
     products = JSON.parse(localStorage.getItem(`ekantin_prod_${selectedCanteenId}`)) || [];
   }
 }
 
 // ==========================================
-// 4. RENDERING VIEWS
+// 3. UI RENDERING
 // ==========================================
 function updateCanteenBanner() {
   const current = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
@@ -126,7 +138,6 @@ function updateCanteenBanner() {
   bannerEl.style.backgroundImage = `url('${current.banner_url}')`;
   document.getElementById("canteenPfp").src = current.pfp_url;
   document.getElementById("canteenTitle").textContent = current.name;
-  document.getElementById("chatWithTitle").textContent = `Chat dengan ${current.name}`;
 }
 
 function renderProducts() {
@@ -138,7 +149,7 @@ function renderProducts() {
   });
 
   if (filtered.length === 0) {
-    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada produk di kantin ini.</p>`;
+    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada menu di kantin ini. Masuk sebagai pemilik kantin untuk menambah menu!</p>`;
     return;
   }
 
@@ -183,8 +194,8 @@ function renderCart() {
   const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
   totalEl.textContent = toRupiah(totalAmount);
-  mobileTotal.textContent = toRupiah(totalAmount);
-  mobileBadge.textContent = `${totalQty} Item`;
+  if (mobileTotal) mobileTotal.textContent = toRupiah(totalAmount);
+  if (mobileBadge) mobileBadge.textContent = `${totalQty} Item`;
   btn.disabled = cart.length === 0;
 
   if (cart.length === 0) {
@@ -207,7 +218,7 @@ function renderCart() {
 function renderKantinStockManager() {
   const container = document.getElementById("kantinMenuList");
   if (!products.length) {
-    container.innerHTML = `<p class="empty-state">Belum ada produk di kantin ini.</p>`;
+    container.innerHTML = `<p class="empty-state">Belum ada menu di kantin ini. Tambahkan di form sebelah kiri.</p>`;
     return;
   }
 
@@ -227,7 +238,299 @@ function renderKantinStockManager() {
 }
 
 // ==========================================
-// 5. CART & STOCK ACTIONS
+// 4. PENAMBAH MENU (OTOMATIS SELESAI & TAMPIL)
+// ==========================================
+async function handleAddMenuSubmit(e) {
+  e.preventDefault();
+  const btn = document.getElementById("btnSubmitMenu");
+  btn.disabled = true;
+  btn.textContent = "Menyimpan ke Supabase...";
+
+  try {
+    const name = document.getElementById("menuName").value.trim();
+    const price = Number(document.getElementById("menuPrice").value);
+    const stock = Number(document.getElementById("menuStock").value);
+    const cat = document.getElementById("menuCat").value;
+    const variants = document.getElementById("menuVariants").value.trim();
+    const file = document.getElementById("menuPhotoFile").files[0];
+
+    let image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400";
+    if (file) {
+      const comp = await compressImage(file, 500, 0.6);
+      if (comp) image_url = comp;
+    }
+
+    // Pastikan ID Kantin tepat
+    const targetCanteenId = (currentUser.role === "kantin" && currentUser.kantin_id)
+      ? Number(currentUser.kantin_id)
+      : Number(selectedCanteenId);
+
+    const newProduct = {
+      canteen_id: targetCanteenId,
+      name,
+      price,
+      stock,
+      cat,
+      variants,
+      image_url
+    };
+
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from("products").insert([newProduct]);
+      if (error) throw new Error(error.message);
+    } else {
+      products.push({ ...newProduct, id: Date.now() });
+      localStorage.setItem(`ekantin_prod_${targetCanteenId}`, JSON.stringify(products));
+    }
+
+    // Langsung arahkan tampilan ke kantin ini & reset filter agar menu langsung kelihatan
+    selectedCanteenId = targetCanteenId;
+    document.getElementById("canteenSelect").value = targetCanteenId;
+    activeCategory = "all";
+    document.querySelectorAll("#categoryChips .chip").forEach((c, idx) => c.classList.toggle("active", idx === 0));
+
+    e.target.reset();
+    await loadProducts();
+    renderProducts();
+    renderKantinStockManager();
+
+    alert(`Menu "${name}" berhasil disimpan dan langsung muncul di katalog!`);
+    switchTab("catalog"); // Pindah langsung ke katalog agar bisa dilihat hasilnya
+  } catch (err) {
+    console.error("Gagal simpan menu:", err);
+    alert("GAGAL SIMPAN KE DATABASE:\n" + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Simpan Menu";
+  }
+}
+
+// ==========================================
+// 5. CHAT PRIVAT (TIAP KANTIN & USER TERPISAH)
+// ==========================================
+async function setupChatView() {
+  const currentCanteen = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
+  const kantinSelectorBox = document.getElementById("kantinBuyerSelectorBox");
+  const subtitle = document.getElementById("chatRoomSubtitle");
+
+  if (currentUser.role === "kantin") {
+    kantinSelectorBox.style.display = "block";
+    subtitle.textContent = "Pilih pembeli untuk membalas pesan obrolan pribadinya";
+
+    // Ambil daftar pembeli unik yang pernah chat ke kantin ini
+    let buyers = [];
+    if (supabaseClient) {
+      const { data } = await supabaseClient
+        .from("messages")
+        .select("buyer_username")
+        .eq("canteen_id", Number(selectedCanteenId));
+
+      if (data) {
+        buyers = [...new Set(data.map(m => m.buyer_username))];
+      }
+    }
+
+    const dropdown = document.getElementById("chatBuyerDropdown");
+    if (buyers.length === 0) {
+      dropdown.innerHTML = `<option value="">Belum ada pembeli yang chat</option>`;
+      activeChatBuyer = "";
+    } else {
+      dropdown.innerHTML = buyers.map(b => `<option value="${b}">Pembeli: ${b}</option>`).join("");
+      activeChatBuyer = dropdown.value || buyers[0];
+    }
+    document.getElementById("chatWithTitle").textContent = `Chat Kantin: ${currentCanteen.name}`;
+  } else {
+    // Pembeli otomatis hanya chat di ruang dirinya sendiri
+    kantinSelectorBox.style.display = "none";
+    activeChatBuyer = currentUser.username;
+    document.getElementById("chatWithTitle").textContent = `Chat dengan ${currentCanteen.name}`;
+    subtitle.textContent = `Obrolan privat antara Anda (${currentUser.username}) dan ${currentCanteen.name}`;
+  }
+
+  loadMessages();
+}
+
+async function loadMessages() {
+  const box = document.getElementById("chatMessages");
+  if (!activeChatBuyer) {
+    box.innerHTML = `<p class="empty-state">Pilih pembeli atau kirim pesan pertama.</p>`;
+    return;
+  }
+
+  let msgs = [];
+  if (supabaseClient) {
+    const { data } = await supabaseClient
+      .from("messages")
+      .select("*")
+      .eq("canteen_id", Number(selectedCanteenId))
+      .eq("buyer_username", activeChatBuyer)
+      .order("id", { ascending: true });
+
+    msgs = data || [];
+  } else {
+    const key = `chat_${selectedCanteenId}_${activeChatBuyer}`;
+    msgs = JSON.parse(localStorage.getItem(key)) || [];
+  }
+
+  if (msgs.length === 0) {
+    box.innerHTML = `<p class="empty-state">Belum ada percakapan. Mulai sapa sekarang!</p>`;
+    return;
+  }
+
+  box.innerHTML = msgs.map(m => `
+    <div class="msg-bubble ${m.sender_name === currentUser.username ? 'me' : 'other'}">
+      <div class="msg-author">${m.sender_name} (${m.sender_role})</div>
+      <div>${m.text}</div>
+    </div>
+  `).join("");
+  box.scrollTop = box.scrollHeight;
+}
+
+document.getElementById("chatBuyerDropdown").addEventListener("change", (e) => {
+  activeChatBuyer = e.target.value;
+  loadMessages();
+});
+
+document.getElementById("chatForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+
+  const targetBuyer = (currentUser.role === "kantin") ? activeChatBuyer : currentUser.username;
+  if (!targetBuyer) {
+    alert("Belum ada pembeli yang dipilih.");
+    return;
+  }
+
+  const newMsg = {
+    canteen_id: Number(selectedCanteenId),
+    buyer_username: targetBuyer,
+    sender_name: currentUser.username,
+    sender_role: currentUser.role,
+    text
+  };
+
+  if (supabaseClient) {
+    await supabaseClient.from("messages").insert([newMsg]);
+  } else {
+    const key = `chat_${selectedCanteenId}_${targetBuyer}`;
+    const localMsgs = JSON.parse(localStorage.getItem(key)) || [];
+    localMsgs.push(newMsg);
+    localStorage.setItem(key, JSON.stringify(localMsgs));
+  }
+
+  input.value = "";
+  await loadMessages();
+});
+
+// ==========================================
+// 6. LOGIN & USER OTOMATIS TERSIMPAN KE SUPABASE
+// ==========================================
+document.getElementById("loginRole").addEventListener("change", (e) => {
+  const role = e.target.value;
+  document.getElementById("kantinOwnerSelectWrap").style.display = role === "kantin" ? "block" : "none";
+  const hintEl = document.getElementById("passcodeHint");
+  if (role === "admin") hintEl.textContent = "Kode Admin: ADMIN#2026 atau admin123";
+  else if (role === "kantin") hintEl.textContent = "Kode Kantin: KANTIN1..KANTIN6 atau PIN 1234";
+  else hintEl.textContent = "Pembeli: Bebas / PIN 1234";
+});
+
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const role = document.getElementById("loginRole").value;
+  const username = document.getElementById("loginUsername").value.trim();
+  const passcode = document.getElementById("loginPasscode").value.trim();
+  const pfpFile = document.getElementById("loginPfpFile").files[0];
+  const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
+
+  // Cek Kode Unik
+  if (role === "admin") {
+    if (!PASSCODES.admin.includes(passcode)) {
+      alert("Kode Akses Admin SALAH! Gunakan: ADMIN#2026");
+      return;
+    }
+  } else if (role === "kantin") {
+    const validCode = PASSCODES.kantinSpecific[kantin_id];
+    if (passcode !== validCode && passcode !== PASSCODES.kantinMaster) {
+      alert(`Kode Kantin SALAH! Gunakan PIN "${validCode}" atau "1234"`);
+      return;
+    }
+  }
+
+  let pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+  if (pfpFile) {
+    const comp = await compressImage(pfpFile, 250, 0.6);
+    if (comp) pfpUrl = comp;
+  }
+
+  // SIMPAN LANGSUNG KE SUPABASE TABLE USERS
+  if (supabaseClient) {
+    try {
+      const { data: existingUser } = await supabaseClient
+        .from("users")
+        .select("*")
+        .eq("username", username)
+        .maybeSingle();
+
+      if (existingUser) {
+        if (existingUser.passcode !== passcode) {
+          alert("Username sudah ada, tetapi PIN/Password Anda salah!");
+          return;
+        }
+        pfpUrl = existingUser.pfp_url || pfpUrl;
+      } else {
+        // Daftar akun baru langsung ke database
+        await supabaseClient.from("users").insert([{
+          username,
+          role,
+          passcode,
+          kantin_id,
+          pfp_url: pfpUrl
+        }]);
+        console.log("User baru berhasil disimpan ke Supabase!");
+      }
+    } catch (err) {
+      console.warn("Koneksi user Supabase:", err.message);
+    }
+  }
+
+  currentUser = { username, role, kantin_id, pfp: pfpUrl };
+  localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+
+  updateUserUI();
+  document.getElementById("loginModal").close();
+  alert(`Berhasil masuk sebagai ${username} (${role.toUpperCase()})`);
+
+  if (role === "kantin") {
+    switchTab("kantin");
+  } else if (role === "admin") {
+    switchTab("admin");
+  } else {
+    switchTab("catalog");
+  }
+
+  await loadProducts();
+  renderProducts();
+  setupChatView();
+});
+
+function updateUserUI() {
+  document.getElementById("userName").textContent = currentUser.username;
+  document.getElementById("userRoleBadge").textContent = currentUser.role;
+  document.getElementById("userPfp").src = currentUser.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
+
+  document.querySelectorAll(".admin-only").forEach(el => el.style.display = currentUser.role === "admin" ? "inline-block" : "none");
+  document.querySelectorAll(".kantin-only").forEach(el => el.style.display = currentUser.role === "kantin" ? "inline-block" : "none");
+
+  if (currentUser.role === "kantin" && currentUser.kantin_id) {
+    selectedCanteenId = currentUser.kantin_id;
+    document.getElementById("canteenSelect").value = selectedCanteenId;
+  }
+}
+
+// ==========================================
+// 7. EVENTS & NAVIGATION
 // ==========================================
 window.handleAddToCart = function(id) {
   const product = products.find(p => p.id === id);
@@ -267,120 +570,14 @@ window.modifyStock = async function(id, delta) {
   renderKantinStockManager();
 };
 
-// ==========================================
-// 6. CHAT BOX SYSTEM
-// ==========================================
-async function loadMessages() {
-  const box = document.getElementById("chatMessages");
-  if (supabaseClient) {
-    const { data } = await supabaseClient
-      .from("messages")
-      .select("*")
-      .eq("canteen_id", selectedCanteenId)
-      .order("id", { ascending: true });
-
-    if (data) renderMessagesList(data);
-  } else {
-    const localMsgs = JSON.parse(localStorage.getItem(`chat_${selectedCanteenId}`)) || [];
-    renderMessagesList(localMsgs);
-  }
-}
-
-function renderMessagesList(msgs) {
-  const box = document.getElementById("chatMessages");
-  box.innerHTML = msgs.map(m => `
-    <div class="msg-bubble ${m.sender_name === currentUser.username ? 'me' : 'other'}">
-      <div class="msg-author">${m.sender_name} (${m.sender_role})</div>
-      <div>${m.text}</div>
-    </div>
-  `).join("");
-  box.scrollTop = box.scrollHeight;
-}
-
-document.getElementById("chatForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const input = document.getElementById("chatInput");
-  const text = input.value.trim();
-  if (!text) return;
-
-  const newMsg = {
-    canteen_id: Number(selectedCanteenId),
-    sender_name: currentUser.username,
-    sender_role: currentUser.role,
-    text
-  };
-
-  if (supabaseClient) {
-    await supabaseClient.from("messages").insert([newMsg]);
-  } else {
-    const key = `chat_${selectedCanteenId}`;
-    const localMsgs = JSON.parse(localStorage.getItem(key)) || [];
-    localMsgs.push(newMsg);
-    localStorage.setItem(key, JSON.stringify(localMsgs));
-  }
-
-  input.value = "";
-  loadMessages();
-});
-
-// ==========================================
-// 7. USER PROFILE & MODAL (UPLOAD PFP)
-// ==========================================
-function updateUserUI() {
-  document.getElementById("userName").textContent = currentUser.username;
-  document.getElementById("userRoleBadge").textContent = currentUser.role;
-  document.getElementById("userPfp").src = currentUser.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
-
-  document.querySelectorAll(".admin-only").forEach(el => el.style.display = currentUser.role === "admin" ? "inline-block" : "none");
-  document.querySelectorAll(".kantin-only").forEach(el => el.style.display = currentUser.role === "kantin" ? "inline-block" : "none");
-
-  if (currentUser.role === "kantin" && currentUser.kantin_id) {
-    selectedCanteenId = currentUser.kantin_id;
-    document.getElementById("canteenSelect").value = selectedCanteenId;
-  }
-}
-
-const loginModal = document.getElementById("loginModal");
-document.getElementById("switchUserBtn").addEventListener("click", () => loginModal.showModal());
-document.getElementById("cancelLoginBtn").addEventListener("click", () => loginModal.close());
-
-document.getElementById("loginRole").addEventListener("change", (e) => {
-  document.getElementById("kantinOwnerSelectWrap").style.display = e.target.value === "kantin" ? "block" : "none";
-});
-
-// Submit Login dengan Kompresi Foto Profil (PFP)
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const role = document.getElementById("loginRole").value;
-  const username = document.getElementById("loginUsername").value.trim();
-  const pfpFile = document.getElementById("loginPfpFile").files[0];
-  const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
-
-  let pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
-  if (pfpFile) {
-    pfpUrl = await compressImage(pfpFile, 300, 0.7);
-  }
-
-  currentUser = { username, role, kantin_id, pfp: pfpUrl };
-  localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
-
-  updateUserUI();
-  loginModal.close();
-  switchTab("catalog");
-  await loadProducts();
-  renderProducts();
-});
-
-// ==========================================
-// 8. EVENT LISTENERS
-// ==========================================
 function setupEventListeners() {
-  // Mobile Cart Drawer Toggle
   const cartSidebar = document.getElementById("cartSidebar");
   document.getElementById("openCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.add("open"));
   document.getElementById("closeCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.remove("open"));
 
-  // Dropdown Canteen Switch
+  document.getElementById("switchUserBtn").addEventListener("click", () => document.getElementById("loginModal").showModal());
+  document.getElementById("cancelLoginBtn").addEventListener("click", () => document.getElementById("loginModal").close());
+
   document.getElementById("canteenSelect").addEventListener("change", async (e) => {
     selectedCanteenId = Number(e.target.value);
     cart = [];
@@ -389,15 +586,13 @@ function setupEventListeners() {
     await loadProducts();
     renderProducts();
     renderKantinStockManager();
-    loadMessages();
+    setupChatView();
   });
 
-  // Tab Nav
   document.querySelectorAll(".nav-tab").forEach(tab => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
 
-  // Filter Kategori
   document.querySelectorAll("#categoryChips .chip").forEach(chip => {
     chip.addEventListener("click", () => {
       document.querySelector("#categoryChips .chip.active")?.classList.remove("active");
@@ -407,65 +602,28 @@ function setupEventListeners() {
     });
   });
 
-  // Search input
   document.getElementById("searchInput").addEventListener("input", (e) => {
     searchQuery = e.target.value.trim();
     renderProducts();
   });
 
-  // Form Tambah Menu (Upload Foto + Kompresi)
-  document.getElementById("addMenuForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById("btnSubmitMenu");
-    btn.disabled = true;
-    btn.textContent = "Menyimpan...";
+  document.getElementById("addMenuForm").addEventListener("submit", handleAddMenuSubmit);
 
-    const name = document.getElementById("menuName").value;
-    const price = Number(document.getElementById("menuPrice").value);
-    const stock = Number(document.getElementById("menuStock").value);
-    const cat = document.getElementById("menuCat").value;
-    const variants = document.getElementById("menuVariants").value;
-    const file = document.getElementById("menuPhotoFile").files[0];
-
-    let image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400";
-    if (file) {
-      image_url = await compressImage(file, 600, 0.7);
-    }
-
-    const newProduct = { canteen_id: Number(selectedCanteenId), name, price, stock, cat, variants, image_url };
-
-    if (supabaseClient) {
-      await supabaseClient.from("products").insert([newProduct]);
-    } else {
-      products.push({ ...newProduct, id: Date.now() });
-      localStorage.setItem(`ekantin_prod_${selectedCanteenId}`, JSON.stringify(products));
-    }
-
-    btn.disabled = false;
-    btn.textContent = "Simpan Menu";
-    e.target.reset();
-    await loadProducts();
-    renderProducts();
-    renderKantinStockManager();
-    alert("Menu berhasil ditambahkan!");
-  });
-
-  // Form Tambah Kantin (Admin) - Upload Banner & PFP
+  // Form Tambah Kantin (Admin)
   document.getElementById("addCanteenForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = document.getElementById("btnSubmitCanteen");
     btn.disabled = true;
-    btn.textContent = "Menyimpan...";
 
     const name = document.getElementById("adminCanteenName").value;
     const bannerFile = document.getElementById("adminBannerFile").files[0];
     const pfpFile = document.getElementById("adminPfpFile").files[0];
 
-    let banner_url = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000";
+    let banner_url = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800";
     let pfp_url = "https://api.dicebear.com/7.x/bottts/svg?seed=canteen";
 
-    if (bannerFile) banner_url = await compressImage(bannerFile, 1000, 0.75);
-    if (pfpFile) pfp_url = await compressImage(pfpFile, 300, 0.7);
+    if (bannerFile) banner_url = (await compressImage(bannerFile, 800, 0.6)) || banner_url;
+    if (pfpFile) pfp_url = (await compressImage(pfpFile, 250, 0.6)) || pfp_url;
 
     const newCanteen = { name, banner_url, pfp_url };
 
@@ -476,15 +634,13 @@ function setupEventListeners() {
     }
 
     btn.disabled = false;
-    btn.textContent = "Tambah Kantin";
     e.target.reset();
     await loadCanteens();
     alert("Kantin baru berhasil ditambahkan!");
   });
 
-  // Checkout
   document.getElementById("checkoutBtn").addEventListener("click", () => {
-    alert("Pesanan berhasil dikirim ke penjual!");
+    alert("Pesanan berhasil dikirim ke kasir kantin!");
     cart = [];
     renderCart();
     document.getElementById("cartSidebar").classList.remove("open");
@@ -498,7 +654,7 @@ function switchTab(tabId) {
   if (tabId === "catalog") document.getElementById("viewCatalog").classList.add("active");
   if (tabId === "chat") {
     document.getElementById("viewChat").classList.add("active");
-    loadMessages();
+    setupChatView();
   }
   if (tabId === "kantin") {
     document.getElementById("viewKantin").classList.add("active");
@@ -506,12 +662,5 @@ function switchTab(tabId) {
   }
   if (tabId === "admin") document.getElementById("viewAdmin").classList.add("active");
 }
-
-// Runnable self-check
-(function selfCheck() {
-  const sampleVariants = "Pedas, Sedang, Manis";
-  const parsed = sampleVariants.split(",").map(s => s.trim());
-  console.assert(parsed.length === 3 && parsed[0] === "Pedas", "Self-check failed: Variant parsing issue");
-})();
 
 initApp();
