@@ -22,7 +22,7 @@
         </div>
       </div>
 
-      <!-- User Profile / Session Control -->
+      <!-- User Profile -->
       <div class="user-session" id="userSessionArea">
         <img id="userPfp" class="user-avatar" src="" alt="PFP" />
         <div class="user-meta">
@@ -44,7 +44,7 @@
 
       <nav class="tab-links" id="roleTabLinks">
         <button class="nav-tab active" data-tab="catalog">🛍️ Katalog</button>
-        <button class="nav-tab" data-tab="chat">💬 Chat</button>
+        <button class="nav-tab" data-tab="chat">💬 Chat Privat</button>
         <button class="nav-tab admin-only" data-tab="admin" style="display: none;">⚙️ Kelola Kantin</button>
         <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu</button>
       </nav>
@@ -55,7 +55,6 @@
 
     <!-- ================= VIEW 1: KATALOG PEMBELI ================= -->
     <div id="viewCatalog" class="view-panel active">
-      <!-- Responsive Banner Kantin -->
       <div class="canteen-banner" id="canteenBanner">
         <div class="banner-overlay">
           <img id="canteenPfp" class="canteen-hero-pfp" src="" alt="PFP Kantin" />
@@ -66,7 +65,6 @@
         </div>
       </div>
 
-      <!-- Filter Kategori & Search Bar -->
       <div class="filter-bar">
         <div class="categories" id="categoryChips">
           <button class="chip active" data-cat="all">Semua</button>
@@ -80,7 +78,6 @@
         </div>
       </div>
 
-      <!-- Store Grid & Cart Sidebar -->
       <div class="store-layout">
         <div id="productGrid" class="product-grid"></div>
 
@@ -102,7 +99,6 @@
         </aside>
       </div>
 
-      <!-- Mobile Floating Cart Trigger -->
       <div class="mobile-cart-bar mobile-only" id="mobileCartBar">
         <div class="mobile-cart-info">
           <span id="mobileCartBadge">0 Item</span>
@@ -112,14 +108,24 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 2: CHAT BOX ================= -->
+    <!-- ================= VIEW 2: CHAT PRIVAT ================= -->
     <div id="viewChat" class="view-panel">
       <div class="chat-card">
         <div class="chat-header">
-          <h3 id="chatWithTitle">Ruang Chat</h3>
-          <span class="chat-hint">Kirim pesan langsung ke penjual</span>
+          <div>
+            <h3 id="chatWithTitle">Ruang Chat Privat</h3>
+            <span class="chat-hint" id="chatRoomSubtitle">Obrolan pribadi dengan penjual</span>
+          </div>
+
+          <!-- Selector khusus penjual kantin untuk memilih pembeli -->
+          <div id="kantinBuyerSelectorBox" style="display: none; margin-top: 0.5rem;">
+            <label style="font-size: 0.75rem; font-weight: bold; color: var(--muted);">Pilih Pembeli:</label>
+            <select id="chatBuyerDropdown" class="canteen-dropdown" style="width: 100%;"></select>
+          </div>
         </div>
+
         <div id="chatMessages" class="chat-messages"></div>
+
         <form id="chatForm" class="chat-form">
           <input type="text" id="chatInput" placeholder="Ketik pesan..." required />
           <button type="submit" class="btn-primary">Kirim</button>
@@ -130,12 +136,11 @@
     <!-- ================= VIEW 3: KELOLA MENU (ROLE: KANTIN) ================= -->
     <div id="viewKantin" class="view-panel">
       <div class="dashboard-grid">
-        <!-- Form Tambah Menu -->
         <div class="dash-card">
           <h3>+ Tambah Menu Baru</h3>
           <form id="addMenuForm" class="form-stack">
             <label>Nama Menu / Barang:
-              <input type="text" id="menuName" required placeholder="Contoh: Nasi Bakar / Pulpen Gel" />
+              <input type="text" id="menuName" required placeholder="Contoh: Nasi Goreng Spesial / Pulpen" />
             </label>
             <div class="form-row">
               <label>Harga (Rp):
@@ -163,7 +168,6 @@
           </form>
         </div>
 
-        <!-- Atur Stok Langsung -->
         <div class="dash-card">
           <h3>Stok Menu Kantin</h3>
           <div id="kantinMenuList" class="stock-manager-list"></div>
@@ -192,11 +196,11 @@
 
   </main>
 
-  <!-- Login Modal (Upload File PFP, Tanpa Email) -->
+  <!-- Login Modal (Tersimpan Langsung ke Supabase) -->
   <dialog id="loginModal" class="modal">
     <div class="modal-box">
-      <h3>Login Akun E-Kantin</h3>
-      <p class="modal-desc">Masuk tanpa email. Cukup pilih peran, username, dan foto profil.</p>
+      <h3>Login / Daftar Akun</h3>
+      <p class="modal-desc">Akun baru otomatis tersimpan langsung ke database Supabase.</p>
       
       <form id="loginForm" class="form-stack">
         <label>Peran:
@@ -214,7 +218,14 @@
         </div>
 
         <label>Username:
-          <input type="text" id="loginUsername" placeholder="Contoh: Rama / Bu Siti" required />
+          <input type="text" id="loginUsername" placeholder="Contoh: Budi / Bu Siti" required />
+        </label>
+
+        <label>Kode Akses / PIN:
+          <input type="password" id="loginPasscode" placeholder="Masukkan PIN / Password" required />
+          <small id="passcodeHint" style="color: var(--muted); font-size: 0.72rem; margin-top: 3px;">
+            Pembeli: Bebas / 1234
+          </small>
         </label>
 
         <label>Upload Foto Profil (PFP):
@@ -223,7 +234,7 @@
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary" id="cancelLoginBtn">Batal</button>
-          <button type="submit" class="btn-primary">Masuk</button>
+          <button type="submit" class="btn-primary">Masuk & Simpan</button>
         </div>
       </form>
     </div>
