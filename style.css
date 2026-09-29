@@ -99,14 +99,13 @@ body {
   font-weight: 600;
 }
 .canteen-dropdown {
-  padding: 0.4rem 0.65rem;
+  padding: 0.45rem 0.65rem;
   border-radius: 8px;
   border: 1px solid var(--border);
   font-family: inherit;
   font-size: 0.85rem;
   font-weight: 600;
   background: #fff;
-  max-width: 240px;
 }
 .tab-links {
   display: flex;
@@ -343,10 +342,7 @@ body {
   z-index: 45;
   box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
 }
-.mobile-cart-info {
-  display: flex;
-  flex-direction: column;
-}
+.mobile-cart-info { display: flex; flex-direction: column; }
 .mobile-cart-info span { font-size: 0.75rem; color: var(--muted); }
 
 /* Chat View */
@@ -428,11 +424,7 @@ body {
   border-radius: 8px;
   font-family: inherit;
 }
-.file-input {
-  padding: 0.35rem !important;
-  font-size: 0.8rem;
-  background: #f8fafc;
-}
+.file-input { padding: 0.35rem !important; font-size: 0.8rem; background: #f8fafc; }
 .form-row { display: flex; gap: 0.5rem; }
 .stock-manager-list { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 0.75rem; }
 .stock-item-row {
@@ -466,7 +458,6 @@ body {
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: background 0.15s;
 }
 .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -511,18 +502,13 @@ body {
 .modal-desc { font-size: 0.8rem; color: var(--muted); margin: 0.2rem 0 0.65rem; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
 
-/* Responsive Queries */
+/* Responsive */
 @media (max-width: 860px) {
   .store-layout, .dashboard-grid { grid-template-columns: 1fr; }
-  
   .mobile-only { display: flex; }
-  
   .cart-sidebar {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
+    bottom: 0; left: 0; right: 0; top: auto;
     z-index: 60;
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
@@ -530,7 +516,6 @@ body {
     max-height: 80vh;
   }
   .cart-sidebar.open { display: block; }
-  
   .nav-tabs-wrapper { flex-direction: column; align-items: stretch; }
   .canteen-selector-wrap { width: 100%; justify-content: space-between; }
   .canteen-dropdown { max-width: 100%; flex: 1; }
@@ -538,10 +523,7 @@ body {
 }
 
 @media (max-width: 520px) {
-  .product-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.65rem;
-  }
+  .product-grid { grid-template-columns: repeat(2, 1fr); gap: 0.65rem; }
   .card-img { height: 110px; }
   .card-body { padding: 0.65rem; }
   .card-title { font-size: 0.85rem; }
