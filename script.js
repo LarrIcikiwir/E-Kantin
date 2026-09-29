@@ -412,4 +412,407 @@ function renderProducts() {
 
     return `
       <article class="card">
-        <img class="card-img" src="${item.image_url || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=400'}" alt="${it
+        <img class="card-img" src="${item.image_url || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=400'}" alt="${item.name}" loading="lazy" />
+        <div class="card-body">
+          <span class="card-tag">${item.cat} • Stok: ${item.stock}</span>
+          <h3 class="card-title">${item.name}</h3>
+          ${variantList.length > 0 ? `<select class="variant-select" id="variant_${item.id}">${variantOptions}</select>` : ''}
+          <div class="card-footer">
+            <span class="card-price">${toRupiah(item.price)}</span>
+            <button class="btn-primary" ${isOutOfStock ? "disabled" : ""} onclick="handleAddToCart(${item.id})">
+              ${isOutOfStock ? "Habis" : "+ Beli"}
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderCart() {
+  const container = document.getElementById("cartItems");
+  const totalEl = document.getElementById("cartTotalPrice");
+  const btn = document.getElementById("checkoutBtn");
+  const mobileBadge = document.getElementById("mobileCartBadge");
+  const mobileTotal = document.getElementById("mobileCartTotal");
+
+  const totalQty = cart.reduce((acc, i) => acc + i.qty, 0);
+  const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+
+  if (totalEl) totalEl.textContent = toRupiah(totalAmount);
+  if (mobileTotal) mobileTotal.textContent = toRupiah(totalAmount);
+  if (mobileBadge) mobileBadge.textContent = `${totalQty} Item`;
+  if (btn) btn.disabled = cart.length === 0;
+
+  if (!container) return;
+  if (cart.length === 0) {
+    container.innerHTML = `<p class="empty-state">Keranjang kosong.</p>`;
+    return;
+  }
+
+  container.innerHTML = cart.map((i, idx) => `
+    <div class="cart-row">
+      <div>
+        <strong>${i.name}</strong>
+        ${i.variant ? `<div style="font-size: 0.75rem; color: var(--muted);">${i.variant}</div>` : ""}
+        <div>${i.qty} x ${toRupiah(i.price)}</div>
+      </div>
+      <button class="btn-sm" onclick="removeFromCart(${idx})">Hapus</button>
+    </div>
+  `).join("");
+}
+
+function renderKantinStockManager() {
+  const container = document.getElementById("kantinMenuList");
+  if (!container) return;
+  if (!products.length) {
+    container.innerHTML = `<p class="empty-state">Belum ada menu di kantin ini.</p>`;
+    return;
+  }
+  container.innerHTML = products.map(item => `
+    <div class="stock-item-row">
+      <div>
+        <strong>${item.name}</strong>
+        <div style="font-size: 0.75rem; color: var(--muted);">${toRupiah(item.price)} (${item.cat})</div>
+      </div>
+      <div class="stock-ctrl">
+        <button class="stock-btn" onclick="modifyStock(${item.id}, -1)">-</button>
+        <strong>${item.stock}</strong>
+        <button class="stock-btn" onclick="modifyStock(${item.id}, 1)">+</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+// ==========================================
+// 6. USER UI & MODAL DIPISAH
+// ==========================================
+function updateUserUI() {
+  const nameEl = document.getElementById("userName");
+  const roleEl = document.getElementById("userRoleBadge");
+  const pfpEl = document.getElementById("userPfp");
+
+  if (nameEl) nameEl.textContent = currentUser.username;
+  if (roleEl) roleEl.textContent = currentUser.role;
+  if (pfpEl) pfpEl.src = currentUser.pfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.username}`;
+
+  document.querySelectorAll(".admin-only").forEach(el => el.style.display = currentUser.role === "admin" ? "inline-block" : "none");
+  document.querySelectorAll(".kantin-only").forEach(el => el.style.display = currentUser.role === "kantin" ? "inline-block" : "none");
+
+  if (currentUser.role === "kantin" && currentUser.kantin_id) {
+    selectedCanteenId = currentUser.kantin_id;
+    const select = document.getElementById("canteenSelect");
+    if (select) select.value = selectedCanteenId;
+  }
+}
+
+function openProfileModal() {
+  document.getElementById("profileCurrentPfp").src = currentUser.pfp;
+  document.getElementById("profileCurrentName").textContent = currentUser.username;
+  document.getElementById("profileCurrentRole").textContent = (currentUser.role || "pembeli").toUpperCase();
+  document.getElementById("profileModal").showModal();
+}
+
+// ==========================================
+// 7. EVENT LISTENERS LENGKAP
+// ==========================================
+window.handleAddToCart = function(id) {
+  const product = products.find(p => p.id === id);
+  if (!product || product.stock <= 0) return;
+  const variantSelect = document.getElementById(`variant_${id}`);
+  const variant = variantSelect ? variantSelect.value : "";
+  const existing = cart.find(c => c.id === id && c.variant === variant);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    cart.push({ id: product.id, name: product.name, price: product.price, variant, qty: 1 });
+  }
+  renderCart();
+};
+
+window.removeFromCart = function(index) {
+  cart.splice(index, 1);
+  renderCart();
+};
+
+window.modifyStock = async function(id, delta) {
+  const product = products.find(p => p.id === id);
+  if (!product) return;
+  product.stock = Math.max(0, product.stock + delta);
+  if (supabaseClient) {
+    try { await supabaseClient.from("products").update({ stock: product.stock }).eq("id", id); } catch(e){}
+  }
+  localStorage.setItem(`ekantin_prod_${selectedCanteenId}`, JSON.stringify(products));
+  renderProducts();
+  renderKantinStockManager();
+};
+
+function setupEventListeners() {
+  // Mobile Cart
+  const cartSidebar = document.getElementById("cartSidebar");
+  document.getElementById("openCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.add("open"));
+  document.getElementById("closeCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.remove("open"));
+
+  // Modal Profil & Login Terpisah
+  document.getElementById("openProfileBtn")?.addEventListener("click", openProfileModal);
+  document.getElementById("closeProfileBtn")?.addEventListener("click", () => document.getElementById("profileModal").close());
+  document.getElementById("switchUserBtn")?.addEventListener("click", () => document.getElementById("loginModal").showModal());
+  document.getElementById("cancelLoginBtn")?.addEventListener("click", () => document.getElementById("loginModal").close());
+  document.getElementById("closeOrderChatBtn")?.addEventListener("click", () => document.getElementById("orderChatModal").close());
+
+  // Ganti Kantin
+  document.getElementById("canteenSelect")?.addEventListener("change", async (e) => {
+    selectedCanteenId = Number(e.target.value);
+    cart = [];
+    renderCart();
+    updateCanteenBanner();
+    await loadProducts();
+    await loadOrders();
+    renderProducts();
+    renderKantinStockManager();
+  });
+
+  // Navigasi Tab
+  document.querySelectorAll(".nav-tab").forEach(tab => {
+    tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+  });
+
+  // Filter Kategori
+  document.querySelectorAll("#categoryChips .chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelector("#categoryChips .chip.active")?.classList.remove("active");
+      chip.classList.add("active");
+      activeCategory = chip.dataset.cat;
+      renderProducts();
+    });
+  });
+
+  // Search
+  document.getElementById("searchInput")?.addEventListener("input", (e) => {
+    searchQuery = e.target.value.trim();
+    renderProducts();
+  });
+
+  // Checkout
+  document.getElementById("checkoutBtn")?.addEventListener("click", handleCheckout);
+  document.getElementById("refreshOrdersBtn")?.addEventListener("click", () => loadOrders());
+
+  // Form Chat Pesanan
+  document.getElementById("orderChatForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!activeChatContext) return;
+    const input = document.getElementById("orderChatInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    const newMsg = {
+      canteen_id: activeChatContext.canteenId,
+      buyer_username: activeChatContext.buyerUsername,
+      sender_name: currentUser.username,
+      sender_role: currentUser.role,
+      text
+    };
+
+    if (supabaseClient) {
+      try { await supabaseClient.from("messages").insert([newMsg]); } catch(e){}
+    }
+    const key = `chat_${activeChatContext.canteenId}_${activeChatContext.buyerUsername}`;
+    const localMsgs = JSON.parse(localStorage.getItem(key)) || [];
+    localMsgs.push(newMsg);
+    localStorage.setItem(key, JSON.stringify(localMsgs));
+
+    input.value = "";
+    await loadOrderChatMessages();
+  });
+
+  // Form Login
+  document.getElementById("loginRole")?.addEventListener("change", (e) => {
+    const role = e.target.value;
+    document.getElementById("kantinOwnerSelectWrap").style.display = role === "kantin" ? "block" : "none";
+    const hintEl = document.getElementById("passcodeHint");
+    if (role === "admin") hintEl.textContent = "Kode Admin: ADMIN#2026 atau admin123";
+    else if (role === "kantin") hintEl.textContent = "Kode Kantin: KANTIN1..KANTIN6 atau PIN 1234";
+    else hintEl.textContent = "Pembeli: Bebas / PIN 1234";
+  });
+
+  document.getElementById("loginForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const role = document.getElementById("loginRole").value;
+    const username = document.getElementById("loginUsername").value.trim();
+    const passcode = document.getElementById("loginPasscode").value.trim();
+    const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
+
+    if (role === "admin" && !PASSCODES.admin.includes(passcode)) {
+      alert("Kode Admin SALAH! Gunakan: ADMIN#2026");
+      return;
+    }
+    if (role === "kantin") {
+      const validCode = PASSCODES.kantinSpecific[kantin_id];
+      if (passcode !== validCode && passcode !== PASSCODES.kantinMaster) {
+        alert(`Kode Kantin SALAH! Gunakan PIN "${validCode}" atau "1234"`);
+        return;
+      }
+    }
+
+    let finalPfp = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+    if (supabaseClient) {
+      try {
+        const { data: existingUser } = await supabaseClient.from("users").select("*").eq("username", username).maybeSingle();
+        if (existingUser) {
+          finalPfp = existingUser.pfp_url || finalPfp;
+        } else {
+          await supabaseClient.from("users").insert([{ username, role, passcode, kantin_id, pfp_url: finalPfp }]);
+        }
+      } catch (err) {}
+    }
+
+    currentUser = { username, role, kantin_id, pfp: finalPfp };
+    localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+    updateUserUI();
+    document.getElementById("loginModal").close();
+    alert(`Berhasil masuk sebagai ${username}!`);
+
+    if (role === "kantin") switchTab("kantin");
+    else if (role === "admin") switchTab("admin");
+    else switchTab("catalog");
+
+    await loadProducts();
+    await loadOrders();
+    renderProducts();
+  });
+
+  // Form Pengaturan Profil
+  document.getElementById("updateProfileForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSaveProfile");
+    btn.disabled = true;
+    btn.textContent = "Mengunggah...";
+
+    try {
+      const file = document.getElementById("updatePfpFile").files[0];
+      if (!file) throw new Error("Pilih foto terlebih dahulu");
+
+      const compressed = await compressImage(file, 250, 0.6);
+      currentUser.pfp = compressed;
+      localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+
+      if (supabaseClient) {
+        await supabaseClient.from("users").update({ pfp_url: compressed }).eq("username", currentUser.username);
+      }
+
+      updateUserUI();
+      document.getElementById("profileCurrentPfp").src = compressed;
+      alert("Foto profil berhasil diperbarui!");
+      document.getElementById("profileModal").close();
+      e.target.reset();
+    } catch (err) {
+      alert("Gagal update profil: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan Foto Profil";
+    }
+  });
+
+  // Form Tambah Menu
+  document.getElementById("addMenuForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSubmitMenu");
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+
+    try {
+      const name = document.getElementById("menuName").value.trim();
+      const price = Number(document.getElementById("menuPrice").value);
+      const stock = Number(document.getElementById("menuStock").value);
+      const cat = document.getElementById("menuCat").value;
+      const variants = document.getElementById("menuVariants").value.trim();
+      const file = document.getElementById("menuPhotoFile").files[0];
+
+      let image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400";
+      if (file) {
+        const comp = await compressImage(file, 500, 0.6);
+        if (comp) image_url = comp;
+      }
+
+      const targetCanteenId = (currentUser.role === "kantin" && currentUser.kantin_id)
+        ? Number(currentUser.kantin_id)
+        : Number(selectedCanteenId);
+
+      const newProduct = { canteen_id: targetCanteenId, name, price, stock, cat, variants, image_url };
+
+      if (supabaseClient) {
+        await supabaseClient.from("products").insert([newProduct]);
+      }
+      products.unshift({ ...newProduct, id: Date.now() });
+      localStorage.setItem(`ekantin_prod_${targetCanteenId}`, JSON.stringify(products));
+
+      selectedCanteenId = targetCanteenId;
+      document.getElementById("canteenSelect").value = targetCanteenId;
+      activeCategory = "all";
+      document.querySelectorAll("#categoryChips .chip").forEach((c, idx) => c.classList.toggle("active", idx === 0));
+
+      e.target.reset();
+      renderProducts();
+      renderKantinStockManager();
+      alert(`Menu "${name}" berhasil disimpan!`);
+      switchTab("catalog");
+    } catch (err) {
+      alert("Gagal simpan menu: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Simpan Menu";
+    }
+  });
+
+  // Form Tambah Kantin (Admin)
+  document.getElementById("addCanteenForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("btnSubmitCanteen");
+    btn.disabled = true;
+
+    try {
+      const name = document.getElementById("adminCanteenName").value;
+      const bannerFile = document.getElementById("adminBannerFile").files[0];
+      const pfpFile = document.getElementById("adminPfpFile").files[0];
+
+      let banner_url = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800";
+      let pfp_url = "https://api.dicebear.com/7.x/bottts/svg?seed=canteen";
+
+      if (bannerFile) banner_url = (await compressImage(bannerFile, 800, 0.6)) || banner_url;
+      if (pfpFile) pfp_url = (await compressImage(pfpFile, 250, 0.6)) || pfp_url;
+
+      const newCanteen = { name, banner_url, pfp_url };
+
+      if (supabaseClient) {
+        await supabaseClient.from("canteens").insert([newCanteen]);
+      }
+      canteens.push({ ...newCanteen, id: canteens.length + 1 });
+      populateCanteenDropdowns();
+      alert("Kantin baru berhasil ditambahkan!");
+      e.target.reset();
+    } catch (err) {
+      alert("Gagal menambah kantin: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll(".nav-tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tabId));
+  document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+
+  if (tabId === "catalog") document.getElementById("viewCatalog").classList.add("active");
+  if (tabId === "orders") {
+    document.getElementById("viewOrders").classList.add("active");
+    loadOrders();
+  }
+  if (tabId === "kantin") {
+    document.getElementById("viewKantin").classList.add("active");
+    renderKantinStockManager();
+  }
+  if (tabId === "admin") document.getElementById("viewAdmin").classList.add("active");
+}
+
+// Jalankan otomatis
+initApp();
