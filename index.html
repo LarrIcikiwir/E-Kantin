@@ -22,7 +22,7 @@
         </div>
       </div>
 
-      <!-- User Profile & Tombol Pengaturan Terpisah -->
+      <!-- User Profile & Tombol Pengaturan -->
       <div class="user-session" id="userSessionArea">
         <img id="userPfp" class="user-avatar" src="" alt="PFP" />
         <div class="user-meta">
@@ -49,7 +49,7 @@
         <button class="nav-tab active" data-tab="catalog">🛍️ Katalog Menu</button>
         <button class="nav-tab" data-tab="orders">📦 Pesanan <span id="ordersCountBadge" class="tab-badge" style="display:none;">0</span></button>
         <button class="nav-tab admin-only" data-tab="admin" style="display: none;">⚙️ Kelola Kantin</button>
-        <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu</button>
+        <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu & Banner</button>
       </nav>
     </div>
   </div>
@@ -125,43 +125,60 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 3: KELOLA MENU (ROLE: KANTIN) ================= -->
+    <!-- ================= VIEW 3: KELOLA MENU & BANNER (ROLE: KANTIN) ================= -->
     <div id="viewKantin" class="view-panel">
       <div class="dashboard-grid">
-        <div class="dash-card">
-          <h3>+ Tambah Menu Baru</h3>
-          <form id="addMenuForm" class="form-stack">
-            <label>Nama Menu / Barang:
-              <input type="text" id="menuName" required placeholder="Contoh: Nasi Goreng Spesial / Pulpen" />
-            </label>
-            <div class="form-row">
-              <label>Harga (Rp):
-                <input type="number" id="menuPrice" required placeholder="12000" />
+        <div class="dash-column">
+          <!-- Form Tambah Menu -->
+          <div class="dash-card">
+            <h3>+ Tambah Menu Baru</h3>
+            <form id="addMenuForm" class="form-stack">
+              <label>Nama Menu / Barang:
+                <input type="text" id="menuName" required placeholder="Contoh: Nasi Goreng Spesial / Pulpen" />
               </label>
-              <label>Stok Awal:
-                <input type="number" id="menuStock" value="10" required />
+              <div class="form-row">
+                <label>Harga (Rp):
+                  <input type="number" id="menuPrice" required placeholder="12000" />
+                </label>
+                <label>Stok Awal:
+                  <input type="number" id="menuStock" value="10" required />
+                </label>
+              </div>
+              <label>Kategori:
+                <select id="menuCat">
+                  <option value="makanan">🍛 Makanan</option>
+                  <option value="minuman">🧋 Minuman</option>
+                  <option value="snack">🍟 Cemilan</option>
+                  <option value="non-makanan">📦 Non-Makanan / ATK</option>
+                </select>
               </label>
-            </div>
-            <label>Kategori:
-              <select id="menuCat">
-                <option value="makanan">🍛 Makanan</option>
-                <option value="minuman">🧋 Minuman</option>
-                <option value="snack">🍟 Cemilan</option>
-                <option value="non-makanan">📦 Non-Makanan / ATK</option>
-              </select>
-            </label>
-            <label>Varian (Pisah tanda koma):
-              <input type="text" id="menuVariants" placeholder="Pedas, Sedang, Manis" />
-            </label>
-            <label>Upload Foto Menu:
-              <input type="file" id="menuPhotoFile" accept="image/*" class="file-input" />
-            </label>
-            <button type="submit" class="btn-primary" id="btnSubmitMenu">Simpan Menu</button>
-          </form>
+              <label>Varian (Pisah tanda koma):
+                <input type="text" id="menuVariants" placeholder="Pedas, Sedang, Manis" />
+              </label>
+              <label>Upload Foto Menu:
+                <input type="file" id="menuPhotoFile" accept="image/*" class="file-input" />
+              </label>
+              <button type="submit" class="btn-primary" id="btnSubmitMenu">Simpan Menu</button>
+            </form>
+          </div>
+
+          <!-- Form Ganti Banner Khusus Orang Kantin -->
+          <div class="dash-card" style="margin-top: 1.25rem;">
+            <h3>🖼️ Ganti Banner Kantin</h3>
+            <p class="chat-hint" style="margin-bottom: 0.5rem;">Ubah tampilan foto banner halaman kantin Anda.</p>
+            <form id="updateCanteenBannerForm" class="form-stack">
+              <label>Upload Foto Banner:
+                <input type="file" id="kantinBannerFile" accept="image/*" class="file-input" required />
+              </label>
+              <button type="submit" class="btn-primary" id="btnSaveBanner">Simpan Banner</button>
+            </form>
+          </div>
         </div>
 
+        <!-- Atur Stok & Hapus Menu -->
         <div class="dash-card">
-          <h3>Stok Menu Kantin</h3>
+          <h3>Daftar & Stok Menu Kantin</h3>
+          <p class="chat-hint">Tambah/kurangi stok atau hapus menu secara permanen.</p>
           <div id="kantinMenuList" class="stock-manager-list"></div>
         </div>
       </div>
@@ -188,7 +205,7 @@
 
   </main>
 
-  <!-- MODAL 1: PENGATURAN AKUN & EDIT PROFIL (DIPISAH) -->
+  <!-- MODAL 1: PENGATURAN AKUN & EDIT PROFIL -->
   <dialog id="profileModal" class="modal">
     <div class="modal-box">
       <div class="modal-chat-header">
@@ -213,7 +230,7 @@
     </div>
   </dialog>
 
-  <!-- MODAL 2: LOGIN / MASUK AKUN (DIPISAH) -->
+  <!-- MODAL 2: LOGIN / MASUK AKUN -->
   <dialog id="loginModal" class="modal">
     <div class="modal-box">
       <h3>🚪 Masuk Akun</h3>
