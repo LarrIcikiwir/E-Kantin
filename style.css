@@ -76,6 +76,10 @@ body {
   text-transform: uppercase;
   color: var(--primary);
 }
+.user-btn-group {
+  display: flex;
+  gap: 0.35rem;
+}
 
 /* Secondary Navigation */
 .canteen-nav-bar {
@@ -423,6 +427,24 @@ body {
   gap: 0.5rem;
 }
 
+/* Profile Modal Area */
+.profile-preview-area {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+.profile-large-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  object-fit: cover;
+  background: #f1f5f9;
+}
+
 /* Chat Integrated in Modal */
 .chat-modal-box {
   max-width: 480px;
@@ -558,9 +580,7 @@ body {
   font-size: 0.8rem;
   cursor: pointer;
 }
-.btn-chat:hover {
-  background: #e2e8f0;
-}
+.btn-chat:hover { background: #e2e8f0; }
 .btn-secondary {
   padding: 0.55rem 0.95rem;
   border-radius: 8px;
@@ -570,12 +590,15 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+.btn-outline {
+  background: #fff;
+  border: 1px solid var(--border);
+}
 .btn-sm {
   padding: 0.3rem 0.6rem;
   font-size: 0.75rem;
   border-radius: 6px;
   border: 1px solid var(--border);
-  background: #fff;
   cursor: pointer;
 }
 .btn-ghost {
