@@ -1,5 +1,5 @@
 // ==========================================
-// 1. KONFIGURASI SUPABASE & STATE
+// 1. SUPABASE CLIENT & CONFIGURATION
 // ==========================================
 const SUPABASE_URL = 'https://ymaqspvidhwgzwrxxbfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl';
@@ -8,17 +8,17 @@ const supabaseClient = window.supabase
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
 
-// Fallback 6 Kantin jika koneksi offline / tabel belum di-seed
+// Fallback 6 Kantin jika offline / belum ada data
 const FALLBACK_CANTEENS = [
-  { id: 1, name: "Kantin 1 - Bu Siti (Aneka Nasi)", banner_url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siti" },
-  { id: 2, name: "Kantin 2 - Pak Joko (Mie & Bakso)", banner_url: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko" },
-  { id: 3, name: "Kantin 3 - Mbak Rini (Minuman & Kopi)", banner_url: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rini" },
-  { id: 4, name: "Kantin 4 - Mas Budi (Gorengan & Snack)", banner_url: "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Budi" },
-  { id: 5, name: "Kantin 5 - Teh Maya (Jus & Buah)", banner_url: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" },
-  { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Non-Makanan)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=1000", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
+  { id: 1, name: "Kantin 1 - Bu Siti (Aneka Nasi)", banner_url: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Siti" },
+  { id: 2, name: "Kantin 2 - Pak Joko (Mie & Bakso)", banner_url: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Joko" },
+  { id: 3, name: "Kantin 3 - Mbak Rini (Minuman & Kopi)", banner_url: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rini" },
+  { id: 4, name: "Kantin 4 - Mas Budi (Gorengan & Snack)", banner_url: "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Budi" },
+  { id: 5, name: "Kantin 5 - Teh Maya (Jus & Buah)", banner_url: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" },
+  { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Barang)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
 ];
 
-// State Global
+// State
 let currentUser = JSON.parse(localStorage.getItem("ekantin_user")) || {
   username: "Siswa 1",
   role: "pembeli",
@@ -37,7 +37,42 @@ const toRupiah = (num) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
 
 // ==========================================
-// 2. INITIALIZATION & DATA FETCHING
+// 2. HELPER: KOMPRESI GAMBAR KE BASE64
+// Mengubah foto besar kamera HP jadi ringan (±30KB-60KB)
+// ==========================================
+function compressImage(file, maxWidth = 800, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
+// ==========================================
+// 3. INITIALIZATION & DATA FETCHING
 // ==========================================
 async function initApp() {
   updateUserUI();
@@ -81,7 +116,7 @@ async function loadProducts() {
 }
 
 // ==========================================
-// 3. UI RENDERING
+// 4. RENDERING VIEWS
 // ==========================================
 function updateCanteenBanner() {
   const current = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
@@ -103,7 +138,7 @@ function renderProducts() {
   });
 
   if (filtered.length === 0) {
-    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada menu di kantin ini.</p>`;
+    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada produk di kantin ini.</p>`;
     return;
   }
 
@@ -114,7 +149,7 @@ function renderProducts() {
 
     return `
       <article class="card">
-        <img class="card-img" src="${item.image_url || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=400'}" alt="${item.name}" />
+        <img class="card-img" src="${item.image_url || 'https://images.unsplash.com/photo-1495195129352-aeb325a55b65?w=400'}" alt="${item.name}" loading="lazy" />
         <div class="card-body">
           <span class="card-tag">${item.cat} • Stok: ${item.stock}</span>
           <h3 class="card-title">${item.name}</h3>
@@ -141,9 +176,15 @@ function renderCart() {
   const container = document.getElementById("cartItems");
   const totalEl = document.getElementById("cartTotalPrice");
   const btn = document.getElementById("checkoutBtn");
+  const mobileBadge = document.getElementById("mobileCartBadge");
+  const mobileTotal = document.getElementById("mobileCartTotal");
 
-  const total = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
-  totalEl.textContent = toRupiah(total);
+  const totalQty = cart.reduce((acc, i) => acc + i.qty, 0);
+  const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+
+  totalEl.textContent = toRupiah(totalAmount);
+  mobileTotal.textContent = toRupiah(totalAmount);
+  mobileBadge.textContent = `${totalQty} Item`;
   btn.disabled = cart.length === 0;
 
   if (cart.length === 0) {
@@ -166,7 +207,7 @@ function renderCart() {
 function renderKantinStockManager() {
   const container = document.getElementById("kantinMenuList");
   if (!products.length) {
-    container.innerHTML = `<p class="empty-state">Belum ada produk terdaftar di kantin ini.</p>`;
+    container.innerHTML = `<p class="empty-state">Belum ada produk di kantin ini.</p>`;
     return;
   }
 
@@ -186,7 +227,7 @@ function renderKantinStockManager() {
 }
 
 // ==========================================
-// 4. CART & STOCK ACTIONS
+// 5. CART & STOCK ACTIONS
 // ==========================================
 window.handleAddToCart = function(id) {
   const product = products.find(p => p.id === id);
@@ -227,7 +268,7 @@ window.modifyStock = async function(id, delta) {
 };
 
 // ==========================================
-// 5. CHAT SYSTEM
+// 6. CHAT BOX SYSTEM
 // ==========================================
 async function loadMessages() {
   const box = document.getElementById("chatMessages");
@@ -283,7 +324,7 @@ document.getElementById("chatForm").addEventListener("submit", async (e) => {
 });
 
 // ==========================================
-// 6. USER, ROLE & NAVIGATION
+// 7. USER PROFILE & MODAL (UPLOAD PFP)
 // ==========================================
 function updateUserUI() {
   document.getElementById("userName").textContent = currentUser.username;
@@ -301,33 +342,45 @@ function updateUserUI() {
 
 const loginModal = document.getElementById("loginModal");
 document.getElementById("switchUserBtn").addEventListener("click", () => loginModal.showModal());
+document.getElementById("cancelLoginBtn").addEventListener("click", () => loginModal.close());
 
 document.getElementById("loginRole").addEventListener("change", (e) => {
   document.getElementById("kantinOwnerSelectWrap").style.display = e.target.value === "kantin" ? "block" : "none";
 });
 
-document.getElementById("loginForm").addEventListener("submit", (e) => {
+// Submit Login dengan Kompresi Foto Profil (PFP)
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const role = document.getElementById("loginRole").value;
   const username = document.getElementById("loginUsername").value.trim();
-  const pfpInput = document.getElementById("loginPfpInput").value.trim();
+  const pfpFile = document.getElementById("loginPfpFile").files[0];
   const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
 
-  currentUser = {
-    username,
-    role,
-    kantin_id,
-    pfp: pfpInput || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`
-  };
+  let pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+  if (pfpFile) {
+    pfpUrl = await compressImage(pfpFile, 300, 0.7);
+  }
 
+  currentUser = { username, role, kantin_id, pfp: pfpUrl };
   localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
+
   updateUserUI();
   loginModal.close();
   switchTab("catalog");
-  loadProducts().then(() => renderProducts());
+  await loadProducts();
+  renderProducts();
 });
 
+// ==========================================
+// 8. EVENT LISTENERS
+// ==========================================
 function setupEventListeners() {
+  // Mobile Cart Drawer Toggle
+  const cartSidebar = document.getElementById("cartSidebar");
+  document.getElementById("openCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.add("open"));
+  document.getElementById("closeCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.remove("open"));
+
+  // Dropdown Canteen Switch
   document.getElementById("canteenSelect").addEventListener("change", async (e) => {
     selectedCanteenId = Number(e.target.value);
     cart = [];
@@ -339,10 +392,12 @@ function setupEventListeners() {
     loadMessages();
   });
 
+  // Tab Nav
   document.querySelectorAll(".nav-tab").forEach(tab => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
 
+  // Filter Kategori
   document.querySelectorAll("#categoryChips .chip").forEach(chip => {
     chip.addEventListener("click", () => {
       document.querySelector("#categoryChips .chip.active")?.classList.remove("active");
@@ -352,14 +407,19 @@ function setupEventListeners() {
     });
   });
 
+  // Search input
   document.getElementById("searchInput").addEventListener("input", (e) => {
     searchQuery = e.target.value.trim();
     renderProducts();
   });
 
-  // Tambah Menu (Upload Foto -> Base64 data URL)
+  // Form Tambah Menu (Upload Foto + Kompresi)
   document.getElementById("addMenuForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = document.getElementById("btnSubmitMenu");
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+
     const name = document.getElementById("menuName").value;
     const price = Number(document.getElementById("menuPrice").value);
     const stock = Number(document.getElementById("menuStock").value);
@@ -369,11 +429,7 @@ function setupEventListeners() {
 
     let image_url = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400";
     if (file) {
-      image_url = await new Promise(res => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result);
-        reader.readAsDataURL(file);
-      });
+      image_url = await compressImage(file, 600, 0.7);
     }
 
     const newProduct = { canteen_id: Number(selectedCanteenId), name, price, stock, cat, variants, image_url };
@@ -385,6 +441,8 @@ function setupEventListeners() {
       localStorage.setItem(`ekantin_prod_${selectedCanteenId}`, JSON.stringify(products));
     }
 
+    btn.disabled = false;
+    btn.textContent = "Simpan Menu";
     e.target.reset();
     await loadProducts();
     renderProducts();
@@ -392,12 +450,22 @@ function setupEventListeners() {
     alert("Menu berhasil ditambahkan!");
   });
 
-  // Tambah Kantin Baru (Admin)
+  // Form Tambah Kantin (Admin) - Upload Banner & PFP
   document.getElementById("addCanteenForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const btn = document.getElementById("btnSubmitCanteen");
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+
     const name = document.getElementById("adminCanteenName").value;
-    const banner_url = document.getElementById("adminBannerUrl").value;
-    const pfp_url = document.getElementById("adminPfpUrl").value;
+    const bannerFile = document.getElementById("adminBannerFile").files[0];
+    const pfpFile = document.getElementById("adminPfpFile").files[0];
+
+    let banner_url = "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000";
+    let pfp_url = "https://api.dicebear.com/7.x/bottts/svg?seed=canteen";
+
+    if (bannerFile) banner_url = await compressImage(bannerFile, 1000, 0.75);
+    if (pfpFile) pfp_url = await compressImage(pfpFile, 300, 0.7);
 
     const newCanteen = { name, banner_url, pfp_url };
 
@@ -407,15 +475,19 @@ function setupEventListeners() {
       canteens.push({ ...newCanteen, id: canteens.length + 1 });
     }
 
+    btn.disabled = false;
+    btn.textContent = "Tambah Kantin";
     e.target.reset();
     await loadCanteens();
     alert("Kantin baru berhasil ditambahkan!");
   });
 
+  // Checkout
   document.getElementById("checkoutBtn").addEventListener("click", () => {
-    alert("Pesanan berhasil dikirim ke penjual kantin!");
+    alert("Pesanan berhasil dikirim ke penjual!");
     cart = [];
     renderCart();
+    document.getElementById("cartSidebar").classList.remove("open");
   });
 }
 
