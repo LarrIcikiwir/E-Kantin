@@ -672,3 +672,25 @@ body {
   .card-price { font-size: 0.85rem; }
   .btn-primary { padding: 0.45rem 0.65rem; font-size: 0.78rem; }
 }
+
+/* Badge & Tombol Batal Pesanan */
+.order-badge.dibatalkan {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.btn-cancel {
+  background: #fee2e2;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-cancel:hover {
+  background: #fecaca;
+}
