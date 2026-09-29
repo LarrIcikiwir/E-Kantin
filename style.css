@@ -1,80 +1,398 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --primary: #f97316;
+  --primary-hover: #ea580c;
+  --border: #e2e8f0;
+  --card-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  --radius: 14px;
+  --font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font);
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ==========================================
-   1. CUSTOM SCROLLBAR GLOBAL & CHAT
-   ========================================== */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* Header */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
 }
 
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
+.nav-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.brand-badge {
+  font-size: 1.8rem;
+}
+.brand h1 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.tagline {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 440px;
+}
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted);
+}
+.search-wrap input {
+  width: 100%;
+  padding: 0.55rem 0.85rem 0.55rem 2.2rem;
   border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  outline: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+.search-wrap input:focus {
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.cart-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background: #fff;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cart-trigger:hover {
+  border-color: var(--primary);
+}
+.badge {
+  background: var(--primary);
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
-/* Scrollbar khusus area pesan chat */
-#chat-messages::-webkit-scrollbar {
-  width: 5px;
+/* Layout */
+.container {
+  max-width: 1200px;
+  margin: 1.5rem auto;
+  padding: 0 1.25rem;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.75rem;
+  align-items: start;
 }
 
-#chat-messages::-webkit-scrollbar-track {
-  background: #f8fafc;
+/* Categories */
+.categories {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.75rem;
+}
+.chip {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+.chip.active, .chip:hover {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
 }
 
-#chat-messages::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
+/* Product Cards */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1rem;
 }
-
-#chat-messages::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* Menyembunyikan scrollbar untuk tab filter kantin */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* ==========================================
-   2. CARD MENU HOVER EFFECT
-   ========================================== */
-.card-item {
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
-.card-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.08);
+}
+.card-thumb {
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  background: #f1f5f9;
+}
+.card-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.card-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.25rem 0 0.5rem;
+}
+.card-price {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin-top: auto;
+  margin-bottom: 0.75rem;
 }
 
-/* ==========================================
-   3. CHAT BUBBLE & ANIMATIONS
-   ========================================== */
-/* Animasi masuk modal chat */
-#chat-modal {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-/* Bubble chat pembungkus teks agar kata panjang terpotong rapi */
-.chat-bubble {
-  word-break: break-word;
-  white-space: pre-wrap;
+.btn-secondary {
+  padding: 0.65rem 1rem;
+  background: #f1f5f9;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-ghost {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* Cart Panel */
+.cart-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 1.25rem;
+  position: sticky;
+  top: 5rem;
+}
+.cart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+}
+.cart-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.cart-items {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.875rem;
+  padding: 2rem 0;
+}
+.cart-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed var(--border);
+}
+.qty-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.qty-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: bold;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+.summary-row.total {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* Modal */
+.modal {
+  margin: auto;
+  border: none;
+  background: transparent;
+}
+.modal::backdrop {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+}
+.modal-box {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  max-width: 360px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+.modal-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.35rem 0 1rem;
+}
+.qris-frame {
+  background: #f8fafc;
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  margin-bottom: 1.25rem;
+}
+.qr-mockup {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto;
+}
+.qr-svg {
+  width: 100%;
+  height: 100%;
+}
+.qris-nominal {
+  display: block;
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: var(--primary);
+  margin-top: 0.75rem;
+}
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .cart-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    z-index: 50;
+    border-radius: 20px 20px 0 0;
+    display: none;
+  }
+  .cart-panel.open {
+    display: block;
+  }
 }
