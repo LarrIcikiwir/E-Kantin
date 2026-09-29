@@ -23,7 +23,6 @@ const FALLBACK_CANTEENS = [
   { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Barang)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
 ];
 
-// App State
 let currentUser = JSON.parse(localStorage.getItem("ekantin_user")) || {
   username: "Siswa 1",
   role: "pembeli",
@@ -35,14 +34,14 @@ let canteens = [];
 let selectedCanteenId = 1;
 let products = [];
 let cart = [];
+let orders = [];
 let activeCategory = "all";
 let searchQuery = "";
-let activeChatBuyer = ""; // Menentukan pembeli mana yang sedang aktif di chat room
+let activeChatBuyer = "";
 
 const toRupiah = (num) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
 
-// Helper kompresi gambar ringan
 function compressImage(file, maxWidth = 600, quality = 0.6) {
   return new Promise((resolve) => {
     if (!file) return resolve(null);
@@ -78,6 +77,7 @@ async function initApp() {
   updateUserUI();
   await loadCanteens();
   await loadProducts();
+  await loadOrders();
   setupEventListeners();
   renderProducts();
   renderCart();
@@ -128,7 +128,151 @@ async function loadProducts() {
 }
 
 // ==========================================
-// 3. UI RENDERING
+// 3. PESANAN (SIMPAN KE SUPABASE & AUTO-HAPUS CHAT)
+// ==========================================
+async function handleCheckout() {
+  if (cart.length === 0) return;
+  const btn = document.getElementById("checkoutBtn");
+  btn.disabled = true;
+  btn.textContent = "Memproses Pesanan...";
+
+  const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
+  const newOrder = {
+    canteen_id: Number(selectedCanteenId),
+    buyer_username: currentUser.username,
+    items: cart,
+    total: totalAmount,
+    status: 'pending'
+  };
+
+  try {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from("orders").insert([newOrder]);
+      if (error) throw new Error(error.message);
+    } else {
+      const localOrders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
+      localOrders.unshift({ ...newOrder, id: Date.now(), created_at: new Date().toISOString() });
+      localStorage.setItem("ekantin_orders", JSON.stringify(localOrders));
+    }
+
+    alert(`Pesanan senilai ${toRupiah(totalAmount)} BERHASIL DIBUAT!\nLihat perkembangan di tab "Pesanan".`);
+    cart = [];
+    renderCart();
+    document.getElementById("cartSidebar").classList.remove("open");
+    await loadOrders();
+    switchTab("orders");
+  } catch (err) {
+    console.error("Gagal checkout:", err);
+    alert("Gagal membuat pesanan:\n" + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Beli Sekarang";
+  }
+}
+
+async function loadOrders() {
+  if (supabaseClient) {
+    try {
+      let query = supabaseClient.from("orders").select("*").order("id", { ascending: false });
+
+      if (currentUser.role === "kantin") {
+        query = query.eq("canteen_id", Number(selectedCanteenId));
+      } else if (currentUser.role === "pembeli") {
+        query = query.eq("buyer_username", currentUser.username);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      orders = data || [];
+    } catch (err) {
+      console.warn("Gagal load orders dari Supabase:", err.message);
+      orders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
+    }
+  } else {
+    orders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
+  }
+
+  renderOrders();
+}
+
+function renderOrders() {
+  const container = document.getElementById("ordersList");
+  const badge = document.getElementById("ordersCountBadge");
+  const pendingOrders = orders.filter(o => o.status === "pending");
+
+  if (pendingOrders.length > 0) {
+    badge.textContent = pendingOrders.length;
+    badge.style.display = "inline-block";
+  } else {
+    badge.style.display = "none";
+  }
+
+  if (orders.length === 0) {
+    container.innerHTML = `<p class="empty-state">Belum ada riwayat pesanan.</p>`;
+    return;
+  }
+
+  container.innerHTML = orders.map(o => {
+    const isKantin = currentUser.role === "kantin" || currentUser.role === "admin";
+    const isPending = o.status === "pending";
+    const itemsText = Array.isArray(o.items)
+      ? o.items.map(i => `${i.name} (${i.variant || 'Normal'}) x${i.qty}`).join(", ")
+      : "Rincian item";
+
+    return `
+      <div class="order-card">
+        <div class="order-head">
+          <strong>#ORD-${o.id} • Pembeli: ${o.buyer_username}</strong>
+          <span class="order-badge ${o.status}">${o.status === 'pending' ? '⏳ Sedang Disiapkan' : '✅ Selesai'}</span>
+        </div>
+        <div class="order-items-detail">${itemsText}</div>
+        <div class="order-foot">
+          <div>Total: <strong style="color:var(--primary);">${toRupiah(o.total)}</strong></div>
+          ${(isKantin && isPending) ? `
+            <button class="btn-success" onclick="completeOrder(${o.id}, ${o.canteen_id}, '${o.buyer_username}')">
+              ✅ Selesaikan Pesanan & Bersihkan Chat
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+// Menyelesaikan pesanan & OTOMATIS MENGHAPUS CHAT antara pembeli & kantin tersebut
+window.completeOrder = async function(orderId, canteenId, buyerUsername) {
+  if (!confirm(`Selesaikan pesanan #ORD-${orderId}? Chat privat dengan ${buyerUsername} akan dibersihkan otomatis.`)) return;
+
+  try {
+    if (supabaseClient) {
+      // 1. Update status pesanan ke selesai
+      await supabaseClient.from("orders").update({ status: "selesai" }).eq("id", orderId);
+
+      // 2. HAPUS otomatis riwayat chat antara kantin ini dan pembeli tersebut
+      await supabaseClient
+        .from("messages")
+        .delete()
+        .eq("canteen_id", Number(canteenId))
+        .eq("buyer_username", buyerUsername);
+    } else {
+      const localOrders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
+      const target = localOrders.find(o => o.id === orderId);
+      if (target) target.status = "selesai";
+      localStorage.setItem("ekantin_orders", JSON.stringify(localOrders));
+
+      localStorage.removeItem(`chat_${canteenId}_${buyerUsername}`);
+    }
+
+    alert(`Pesanan #ORD-${orderId} selesai! Chat riwayat dengan ${buyerUsername} telah dibersihkan.`);
+    await loadOrders();
+    await setupChatView();
+  } catch (err) {
+    alert("Gagal menyelesaikan pesanan: " + err.message);
+  }
+};
+
+// ==========================================
+// 4. RENDERING VIEWS
 // ==========================================
 function updateCanteenBanner() {
   const current = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
@@ -149,7 +293,7 @@ function renderProducts() {
   });
 
   if (filtered.length === 0) {
-    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada menu di kantin ini. Masuk sebagai pemilik kantin untuk menambah menu!</p>`;
+    grid.innerHTML = `<p class="empty-state" style="grid-column: 1/-1;">Belum ada menu di kantin ini.</p>`;
     return;
   }
 
@@ -218,7 +362,7 @@ function renderCart() {
 function renderKantinStockManager() {
   const container = document.getElementById("kantinMenuList");
   if (!products.length) {
-    container.innerHTML = `<p class="empty-state">Belum ada menu di kantin ini. Tambahkan di form sebelah kiri.</p>`;
+    container.innerHTML = `<p class="empty-state">Belum ada menu di kantin ini.</p>`;
     return;
   }
 
@@ -238,7 +382,7 @@ function renderKantinStockManager() {
 }
 
 // ==========================================
-// 4. PENAMBAH MENU (OTOMATIS SELESAI & TAMPIL)
+// 5. TAMBAH MENU
 // ==========================================
 async function handleAddMenuSubmit(e) {
   e.preventDefault();
@@ -260,7 +404,6 @@ async function handleAddMenuSubmit(e) {
       if (comp) image_url = comp;
     }
 
-    // Pastikan ID Kantin tepat
     const targetCanteenId = (currentUser.role === "kantin" && currentUser.kantin_id)
       ? Number(currentUser.kantin_id)
       : Number(selectedCanteenId);
@@ -283,7 +426,6 @@ async function handleAddMenuSubmit(e) {
       localStorage.setItem(`ekantin_prod_${targetCanteenId}`, JSON.stringify(products));
     }
 
-    // Langsung arahkan tampilan ke kantin ini & reset filter agar menu langsung kelihatan
     selectedCanteenId = targetCanteenId;
     document.getElementById("canteenSelect").value = targetCanteenId;
     activeCategory = "all";
@@ -294,10 +436,9 @@ async function handleAddMenuSubmit(e) {
     renderProducts();
     renderKantinStockManager();
 
-    alert(`Menu "${name}" berhasil disimpan dan langsung muncul di katalog!`);
-    switchTab("catalog"); // Pindah langsung ke katalog agar bisa dilihat hasilnya
+    alert(`Menu "${name}" berhasil disimpan!`);
+    switchTab("catalog");
   } catch (err) {
-    console.error("Gagal simpan menu:", err);
     alert("GAGAL SIMPAN KE DATABASE:\n" + err.message);
   } finally {
     btn.disabled = false;
@@ -306,7 +447,7 @@ async function handleAddMenuSubmit(e) {
 }
 
 // ==========================================
-// 5. CHAT PRIVAT (TIAP KANTIN & USER TERPISAH)
+// 6. CHAT PRIVAT
 // ==========================================
 async function setupChatView() {
   const currentCanteen = canteens.find(c => c.id === Number(selectedCanteenId)) || canteens[0];
@@ -317,7 +458,6 @@ async function setupChatView() {
     kantinSelectorBox.style.display = "block";
     subtitle.textContent = "Pilih pembeli untuk membalas pesan obrolan pribadinya";
 
-    // Ambil daftar pembeli unik yang pernah chat ke kantin ini
     let buyers = [];
     if (supabaseClient) {
       const { data } = await supabaseClient
@@ -332,7 +472,7 @@ async function setupChatView() {
 
     const dropdown = document.getElementById("chatBuyerDropdown");
     if (buyers.length === 0) {
-      dropdown.innerHTML = `<option value="">Belum ada pembeli yang chat</option>`;
+      dropdown.innerHTML = `<option value="">Belum ada obrolan aktif</option>`;
       activeChatBuyer = "";
     } else {
       dropdown.innerHTML = buyers.map(b => `<option value="${b}">Pembeli: ${b}</option>`).join("");
@@ -340,7 +480,6 @@ async function setupChatView() {
     }
     document.getElementById("chatWithTitle").textContent = `Chat Kantin: ${currentCanteen.name}`;
   } else {
-    // Pembeli otomatis hanya chat di ruang dirinya sendiri
     kantinSelectorBox.style.display = "none";
     activeChatBuyer = currentUser.username;
     document.getElementById("chatWithTitle").textContent = `Chat dengan ${currentCanteen.name}`;
@@ -353,7 +492,7 @@ async function setupChatView() {
 async function loadMessages() {
   const box = document.getElementById("chatMessages");
   if (!activeChatBuyer) {
-    box.innerHTML = `<p class="empty-state">Pilih pembeli atau kirim pesan pertama.</p>`;
+    box.innerHTML = `<p class="empty-state">Belum ada obrolan aktif.</p>`;
     return;
   }
 
@@ -373,7 +512,7 @@ async function loadMessages() {
   }
 
   if (msgs.length === 0) {
-    box.innerHTML = `<p class="empty-state">Belum ada percakapan. Mulai sapa sekarang!</p>`;
+    box.innerHTML = `<p class="empty-state">Belum ada percakapan aktif.</p>`;
     return;
   }
 
@@ -425,7 +564,7 @@ document.getElementById("chatForm").addEventListener("submit", async (e) => {
 });
 
 // ==========================================
-// 6. LOGIN & USER OTOMATIS TERSIMPAN KE SUPABASE
+// 7. LOGIN & GANTI FOTO PROFIL (PFP)
 // ==========================================
 document.getElementById("loginRole").addEventListener("change", (e) => {
   const role = e.target.value;
@@ -444,7 +583,6 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   const pfpFile = document.getElementById("loginPfpFile").files[0];
   const kantin_id = role === "kantin" ? Number(document.getElementById("loginKantinId").value) : null;
 
-  // Cek Kode Unik
   if (role === "admin") {
     if (!PASSCODES.admin.includes(passcode)) {
       alert("Kode Akses Admin SALAH! Gunakan: ADMIN#2026");
@@ -458,13 +596,14 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     }
   }
 
-  let pfpUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+  // Jika upload foto baru, kompres foto tersebut
+  let newUploadedPfp = null;
   if (pfpFile) {
-    const comp = await compressImage(pfpFile, 250, 0.6);
-    if (comp) pfpUrl = comp;
+    newUploadedPfp = await compressImage(pfpFile, 250, 0.6);
   }
 
-  // SIMPAN LANGSUNG KE SUPABASE TABLE USERS
+  let finalPfp = newUploadedPfp;
+
   if (supabaseClient) {
     try {
       const { data: existingUser } = await supabaseClient
@@ -478,39 +617,47 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
           alert("Username sudah ada, tetapi PIN/Password Anda salah!");
           return;
         }
-        pfpUrl = existingUser.pfp_url || pfpUrl;
+
+        // Jika upload foto baru, update PFP ke database Supabase
+        if (newUploadedPfp) {
+          await supabaseClient.from("users").update({ pfp_url: newUploadedPfp }).eq("username", username);
+          finalPfp = newUploadedPfp;
+        } else {
+          finalPfp = existingUser.pfp_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+        }
       } else {
-        // Daftar akun baru langsung ke database
+        // User baru mendaftar
+        finalPfp = newUploadedPfp || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
         await supabaseClient.from("users").insert([{
           username,
           role,
           passcode,
           kantin_id,
-          pfp_url: pfpUrl
+          pfp_url: finalPfp
         }]);
-        console.log("User baru berhasil disimpan ke Supabase!");
       }
     } catch (err) {
-      console.warn("Koneksi user Supabase:", err.message);
+      console.warn("Koneksi Supabase user:", err.message);
     }
   }
 
-  currentUser = { username, role, kantin_id, pfp: pfpUrl };
+  if (!finalPfp) {
+    finalPfp = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+  }
+
+  currentUser = { username, role, kantin_id, pfp: finalPfp };
   localStorage.setItem("ekantin_user", JSON.stringify(currentUser));
 
   updateUserUI();
   document.getElementById("loginModal").close();
-  alert(`Berhasil masuk sebagai ${username} (${role.toUpperCase()})`);
+  alert(`Berhasil masuk! Foto profil dan status akun telah diperbarui.`);
 
-  if (role === "kantin") {
-    switchTab("kantin");
-  } else if (role === "admin") {
-    switchTab("admin");
-  } else {
-    switchTab("catalog");
-  }
+  if (role === "kantin") switchTab("kantin");
+  else if (role === "admin") switchTab("admin");
+  else switchTab("catalog");
 
   await loadProducts();
+  await loadOrders();
   renderProducts();
   setupChatView();
 });
@@ -530,7 +677,7 @@ function updateUserUI() {
 }
 
 // ==========================================
-// 7. EVENTS & NAVIGATION
+// 8. EVENTS & ACTIONS
 // ==========================================
 window.handleAddToCart = function(id) {
   const product = products.find(p => p.id === id);
@@ -584,6 +731,7 @@ function setupEventListeners() {
     renderCart();
     updateCanteenBanner();
     await loadProducts();
+    await loadOrders();
     renderProducts();
     renderKantinStockManager();
     setupChatView();
@@ -608,6 +756,8 @@ function setupEventListeners() {
   });
 
   document.getElementById("addMenuForm").addEventListener("submit", handleAddMenuSubmit);
+  document.getElementById("checkoutBtn").addEventListener("click", handleCheckout);
+  document.getElementById("refreshOrdersBtn").addEventListener("click", () => loadOrders());
 
   // Form Tambah Kantin (Admin)
   document.getElementById("addCanteenForm").addEventListener("submit", async (e) => {
@@ -638,13 +788,6 @@ function setupEventListeners() {
     await loadCanteens();
     alert("Kantin baru berhasil ditambahkan!");
   });
-
-  document.getElementById("checkoutBtn").addEventListener("click", () => {
-    alert("Pesanan berhasil dikirim ke kasir kantin!");
-    cart = [];
-    renderCart();
-    document.getElementById("cartSidebar").classList.remove("open");
-  });
 }
 
 function switchTab(tabId) {
@@ -652,6 +795,10 @@ function switchTab(tabId) {
   document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
 
   if (tabId === "catalog") document.getElementById("viewCatalog").classList.add("active");
+  if (tabId === "orders") {
+    document.getElementById("viewOrders").classList.add("active");
+    loadOrders();
+  }
   if (tabId === "chat") {
     document.getElementById("viewChat").classList.add("active");
     setupChatView();
