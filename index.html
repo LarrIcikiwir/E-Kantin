@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>E-Kantin — Multi-Kantin Digital</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -29,7 +29,7 @@
           <strong id="userName">Tamu</strong>
           <span id="userRoleBadge" class="role-badge">Pembeli</span>
         </div>
-        <button id="switchUserBtn" class="btn-sm">Ganti Akun</button>
+        <button id="switchUserBtn" class="btn-sm">Ganti / Edit Akun</button>
       </div>
     </div>
   </header>
@@ -44,6 +44,7 @@
 
       <nav class="tab-links" id="roleTabLinks">
         <button class="nav-tab active" data-tab="catalog">🛍️ Katalog</button>
+        <button class="nav-tab" data-tab="orders">📦 Pesanan <span id="ordersCountBadge" class="tab-badge" style="display:none;">0</span></button>
         <button class="nav-tab" data-tab="chat">💬 Chat Privat</button>
         <button class="nav-tab admin-only" data-tab="admin" style="display: none;">⚙️ Kelola Kantin</button>
         <button class="nav-tab kantin-only" data-tab="kantin" style="display: none;">📋 Kelola Menu</button>
@@ -108,16 +109,30 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 2: CHAT PRIVAT ================= -->
+    <!-- ================= VIEW 2: RIWAYAT & PESANAN MASUK ================= -->
+    <div id="viewOrders" class="view-panel">
+      <div class="dash-card max-800">
+        <div class="orders-panel-header">
+          <div>
+            <h3 id="ordersTitle">Riwayat Pesanan</h3>
+            <p class="chat-hint" id="ordersSubtitle">Daftar pesanan Anda</p>
+          </div>
+          <button id="refreshOrdersBtn" class="btn-sm">🔄 Segarkan</button>
+        </div>
+        <div id="ordersList" class="orders-list"></div>
+      </div>
+    </div>
+
+    <!-- ================= VIEW 3: CHAT PRIVAT ================= -->
     <div id="viewChat" class="view-panel">
       <div class="chat-card">
         <div class="chat-header">
           <div>
             <h3 id="chatWithTitle">Ruang Chat Privat</h3>
-            <span class="chat-hint" id="chatRoomSubtitle">Obrolan pribadi dengan penjual</span>
+            <span class="chat-hint" id="chatRoomSubtitle">Obrolan pribadi</span>
           </div>
 
-          <!-- Selector khusus penjual kantin untuk memilih pembeli -->
+          <!-- Selector khusus kantin untuk memilih pembeli -->
           <div id="kantinBuyerSelectorBox" style="display: none; margin-top: 0.5rem;">
             <label style="font-size: 0.75rem; font-weight: bold; color: var(--muted);">Pilih Pembeli:</label>
             <select id="chatBuyerDropdown" class="canteen-dropdown" style="width: 100%;"></select>
@@ -133,7 +148,7 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 3: KELOLA MENU (ROLE: KANTIN) ================= -->
+    <!-- ================= VIEW 4: KELOLA MENU (ROLE: KANTIN) ================= -->
     <div id="viewKantin" class="view-panel">
       <div class="dashboard-grid">
         <div class="dash-card">
@@ -175,7 +190,7 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 4: ADMIN PANEL ================= -->
+    <!-- ================= VIEW 5: ADMIN PANEL ================= -->
     <div id="viewAdmin" class="view-panel">
       <div class="dash-card max-600">
         <h3>+ Tambah Kantin Baru (Admin)</h3>
@@ -196,11 +211,11 @@
 
   </main>
 
-  <!-- Login Modal (Tersimpan Langsung ke Supabase) -->
+  <!-- Login / Edit Akun Modal -->
   <dialog id="loginModal" class="modal">
     <div class="modal-box">
-      <h3>Login / Daftar Akun</h3>
-      <p class="modal-desc">Akun baru otomatis tersimpan langsung ke database Supabase.</p>
+      <h3>Login / Ganti Profil</h3>
+      <p class="modal-desc">Akun & foto profil baru otomatis tersimpan ke Supabase.</p>
       
       <form id="loginForm" class="form-stack">
         <label>Peran:
@@ -228,13 +243,14 @@
           </small>
         </label>
 
-        <label>Upload Foto Profil (PFP):
+        <label>Ganti / Upload Foto Profil (PFP):
           <input type="file" id="loginPfpFile" accept="image/*" class="file-input" />
+          <small style="color: var(--muted); font-size: 0.7rem;">Pilih foto baru untuk memperbarui profil Anda.</small>
         </label>
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary" id="cancelLoginBtn">Batal</button>
-          <button type="submit" class="btn-primary">Masuk & Simpan</button>
+          <button type="submit" class="btn-primary">Masuk & Perbarui</button>
         </div>
       </form>
     </div>
