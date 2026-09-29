@@ -4,7 +4,6 @@
 const SUPABASE_URL = 'https://ymaqspvidhwgzwrxxbfk.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl';
 
-// Inisialisasi aman tanpa risiko crash jika CDN lambat
 const supabaseClient = (typeof window !== "undefined" && window.supabase)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
@@ -24,14 +23,13 @@ const FALLBACK_CANTEENS = [
   { id: 6, name: "Kantin 6 - Koperasi Sekolah (ATK & Barang)", banner_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=800", pfp_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=Koperasi" }
 ];
 
-// Fallback menu awal agar langsung tampil tanpa menunggu koneksi
+// Fallback menu bawaan awal jika database kosong
 const FALLBACK_PRODUCTS = [
   { id: 1, canteen_id: 1, name: "Nasi Uduk Komplit", price: 12000, stock: 15, cat: "makanan", variants: "Biasa, Telur, Ayam", image_url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400" },
   { id: 2, canteen_id: 1, name: "Es Teh Manis Jumbo", price: 4000, stock: 30, cat: "minuman", variants: "Manis, Tawar, Lemon", image_url: "https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=400" },
   { id: 3, canteen_id: 6, name: "Buku Tulis 38 Lembar", price: 4500, stock: 50, cat: "non-makanan", variants: "Garis, Polos", image_url: "https://images.unsplash.com/photo-1588072432836-e10032774350?w=400" }
 ];
 
-// Validasi state user aman dari error localStorage
 let currentUser;
 try {
   currentUser = JSON.parse(localStorage.getItem("ekantin_user"));
@@ -50,10 +48,13 @@ let canteens = [...FALLBACK_CANTEENS];
 let selectedCanteenId = 1;
 let products = [...FALLBACK_PRODUCTS];
 let cart = [];
-let orders = [];
+let orders = []; // Murni kosong tanpa dummy
 let activeCategory = "all";
 let searchQuery = "";
+
+// State Chat & Auto-Refresh Interval
 let activeChatContext = null;
+let chatPollInterval = null;
 
 const toRupiah = (num) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num || 0);
@@ -87,11 +88,13 @@ function compressImage(file, maxWidth = 600, quality = 0.6) {
 }
 
 // ==========================================
-// 2. INITIALIZATION (INSTAN & ANTI-MACET)
+// 2. INITIALIZATION
 // ==========================================
 function initApp() {
   try {
-    // Langkah 1: Render tampilan dan pasang SEMUA tombol secara instan (0 detik)
+    // Bersihkan sisa dummy order lama di browser
+    localStorage.removeItem("ekantin_orders");
+
     updateUserUI();
     setupEventListeners();
     populateCanteenDropdowns();
@@ -99,7 +102,6 @@ function initApp() {
     renderProducts();
     renderCart();
 
-    // Langkah 2: Sinkronkan dengan database Supabase di background tanpa bikin macet
     syncSupabaseData();
   } catch (err) {
     console.error("InitApp error:", err);
@@ -107,10 +109,7 @@ function initApp() {
 }
 
 async function syncSupabaseData() {
-  if (!supabaseClient) {
-    console.warn("Supabase client belum aktif, aplikasi berjalan dalam mode lokal.");
-    return;
-  }
+  if (!supabaseClient) return;
   try {
     await loadCanteens();
     await loadProducts();
@@ -118,7 +117,7 @@ async function syncSupabaseData() {
     renderProducts();
     renderOrders();
   } catch (err) {
-    console.warn("Gagal sinkron data Supabase:", err);
+    console.warn("Gagal sync Supabase:", err);
   }
 }
 
@@ -143,17 +142,11 @@ async function loadCanteens() {
       populateCanteenDropdowns();
       updateCanteenBanner();
     }
-  } catch (e) {
-    console.warn("Koneksi canteens:", e);
-  }
+  } catch (e) {}
 }
 
 async function loadProducts() {
-  if (!supabaseClient) {
-    const local = JSON.parse(localStorage.getItem(`ekantin_prod_${selectedCanteenId}`));
-    if (local) products = local;
-    return;
-  }
+  if (!supabaseClient) return;
   try {
     const { data, error } = await supabaseClient
       .from("products")
@@ -164,26 +157,19 @@ async function loadProducts() {
     if (!error && data && data.length > 0) {
       products = data;
     } else {
-      const local = JSON.parse(localStorage.getItem(`ekantin_prod_${selectedCanteenId}`));
-      if (local && local.length > 0) {
-        products = local;
-      } else {
-        products = FALLBACK_PRODUCTS.filter(p => Number(p.canteen_id) === Number(selectedCanteenId));
-      }
+      products = FALLBACK_PRODUCTS.filter(p => Number(p.canteen_id) === Number(selectedCanteenId));
     }
-  } catch (err) {
-    console.warn("Load products:", err);
-  }
+  } catch (err) {}
 }
 
 // ==========================================
-// 3. PESANAN (CHECKOUT & LOAD)
+// 3. PESANAN (MURNI SUPABASE, NO DUMMY)
 // ==========================================
 async function handleCheckout() {
   if (cart.length === 0) return;
   const btn = document.getElementById("checkoutBtn");
   btn.disabled = true;
-  btn.textContent = "Memproses Pesanan...";
+  btn.textContent = "Memproses...";
 
   const totalAmount = cart.reduce((acc, i) => acc + (i.price * i.qty), 0);
   const newOrder = {
@@ -197,24 +183,17 @@ async function handleCheckout() {
   try {
     if (supabaseClient) {
       const { error } = await supabaseClient.from("orders").insert([newOrder]);
-      if (error) console.warn("Supabase order insert error:", error.message);
+      if (error) throw new Error(error.message);
     }
 
-    const localOrders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
-    localOrders.unshift({ ...newOrder, id: Date.now(), created_at: new Date().toISOString() });
-    localStorage.setItem("ekantin_orders", JSON.stringify(localOrders));
-
-    alert(`Pesanan senilai ${toRupiah(totalAmount)} BERHASIL DIBUAT!\nCek status pesanan di tab "Pesanan".`);
+    alert(`Pesanan senilai ${toRupiah(totalAmount)} BERHASIL DIBUAT!\nLihat pesanan Anda di tab "Pesanan".`);
     cart = [];
     renderCart();
     document.getElementById("cartSidebar").classList.remove("open");
     await loadOrders();
     switchTab("orders");
   } catch (err) {
-    alert("Pesanan dicatat ke sistem lokal.");
-    cart = [];
-    renderCart();
-    switchTab("orders");
+    alert("Gagal membuat pesanan: " + err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = "Beli Sekarang";
@@ -222,34 +201,25 @@ async function handleCheckout() {
 }
 
 async function loadOrders() {
-  let loaded = [];
+  orders = [];
   if (supabaseClient) {
     try {
       let query = supabaseClient.from("orders").select("*").order("id", { ascending: false });
+
       if (currentUser.role === "kantin") {
         query = query.eq("canteen_id", Number(selectedCanteenId));
       } else if (currentUser.role === "pembeli") {
         query = query.eq("buyer_username", currentUser.username);
       }
+
       const { data, error } = await query;
-      if (!error && data) loaded = data;
+      if (!error && data) {
+        orders = data;
+      }
     } catch (e) {
-      console.warn("Load orders:", e);
+      console.warn("Load orders error:", e);
     }
   }
-
-  if (loaded.length === 0) {
-    const localOrders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
-    if (currentUser.role === "kantin") {
-      loaded = localOrders.filter(o => Number(o.canteen_id) === Number(selectedCanteenId));
-    } else if (currentUser.role === "pembeli") {
-      loaded = localOrders.filter(o => o.buyer_username === currentUser.username);
-    } else {
-      loaded = localOrders;
-    }
-  }
-
-  orders = loaded;
   renderOrders();
 }
 
@@ -265,7 +235,7 @@ function renderOrders() {
   }
 
   if (orders.length === 0) {
-    container.innerHTML = `<p class="empty-state">Belum ada riwayat pesanan.</p>`;
+    container.innerHTML = `<p class="empty-state">Belum ada pesanan aktif.</p>`;
     return;
   }
 
@@ -308,64 +278,71 @@ function renderOrders() {
 }
 
 window.completeOrder = async function(orderId, canteenId, buyerUsername) {
-  if (!confirm(`Selesaikan pesanan #ORD-${orderId}? Chat obrolan seputar pesanan ini akan dibersihkan otomatis.`)) return;
+  if (!confirm(`Selesaikan pesanan #ORD-${orderId}? Chat obrolan seputar pesanan ini akan otomatis dihapus.`)) return;
   try {
     if (supabaseClient) {
       await supabaseClient.from("orders").update({ status: "selesai" }).eq("id", orderId);
       await supabaseClient.from("messages").delete().eq("canteen_id", Number(canteenId)).eq("buyer_username", buyerUsername);
     }
-    const localOrders = JSON.parse(localStorage.getItem("ekantin_orders")) || [];
-    const target = localOrders.find(o => o.id === orderId);
-    if (target) target.status = "selesai";
-    localStorage.setItem("ekantin_orders", JSON.stringify(localOrders));
-    localStorage.removeItem(`chat_${canteenId}_${buyerUsername}`);
-
-    alert(`Pesanan #ORD-${orderId} selesai! Chat telah dibersihkan.`);
+    alert(`Pesanan #ORD-${orderId} selesai! Riwayat chat telah dibersihkan.`);
     await loadOrders();
     document.getElementById("orderChatModal").close();
   } catch (err) {
-    alert("Selesai diproses.");
-    await loadOrders();
+    alert("Gagal menyelesaikan pesanan: " + err.message);
   }
 };
 
 // ==========================================
-// 4. CHAT MODAL
+// 4. CHAT DUA ARAH REAL-TIME (AUTO-REFRESH 1.5s)
 // ==========================================
 window.openOrderChat = function(canteenId, buyerUsername, title) {
   activeChatContext = { canteenId: Number(canteenId), buyerUsername, title };
   document.getElementById("orderChatModalTitle").textContent = `💬 ${title}`;
   document.getElementById("orderChatModalDesc").textContent = `Obrolan antara ${buyerUsername} dan Kantin`;
   document.getElementById("orderChatModal").showModal();
+
   loadOrderChatMessages();
+
+  // Bersihkan interval sebelumnya jika ada, lalu jalankan polling tiap 1.5 detik
+  if (chatPollInterval) clearInterval(chatPollInterval);
+  chatPollInterval = setInterval(loadOrderChatMessages, 1500);
 };
 
+function closeOrderChat() {
+  document.getElementById("orderChatModal").close();
+  if (chatPollInterval) {
+    clearInterval(chatPollInterval);
+    chatPollInterval = null;
+  }
+  activeChatContext = null;
+}
+
+document.getElementById("closeOrderChatBtn")?.addEventListener("click", closeOrderChat);
+
 async function loadOrderChatMessages() {
-  if (!activeChatContext) return;
+  if (!activeChatContext || !supabaseClient) return;
   const box = document.getElementById("orderChatMessages");
   let msgs = [];
 
-  if (supabaseClient) {
-    try {
-      const { data } = await supabaseClient
-        .from("messages")
-        .select("*")
-        .eq("canteen_id", activeChatContext.canteenId)
-        .eq("buyer_username", activeChatContext.buyerUsername)
-        .order("id", { ascending: true });
-      if (data) msgs = data;
-    } catch (e) {}
+  try {
+    const { data, error } = await supabaseClient
+      .from("messages")
+      .select("*")
+      .eq("canteen_id", activeChatContext.canteenId)
+      .eq("buyer_username", activeChatContext.buyerUsername)
+      .order("id", { ascending: true });
+
+    if (!error && data) msgs = data;
+  } catch (e) {
+    console.warn("Gagal load pesan:", e);
   }
 
   if (msgs.length === 0) {
-    const key = `chat_${activeChatContext.canteenId}_${activeChatContext.buyerUsername}`;
-    msgs = JSON.parse(localStorage.getItem(key)) || [];
-  }
-
-  if (msgs.length === 0) {
-    box.innerHTML = `<p class="empty-state">Belum ada obrolan. Tanyakan pesanan di sini!</p>`;
+    box.innerHTML = `<p class="empty-state">Belum ada pesan. Sapa sekarang!</p>`;
     return;
   }
+
+  const isScrolledToBottom = box.scrollHeight - box.clientHeight <= box.scrollTop + 50;
 
   box.innerHTML = msgs.map(m => `
     <div class="msg-bubble ${m.sender_name === currentUser.username ? 'me' : 'other'}">
@@ -373,8 +350,42 @@ async function loadOrderChatMessages() {
       <div>${m.text}</div>
     </div>
   `).join("");
-  box.scrollTop = box.scrollHeight;
+
+  // Otomatis scroll ke bawah hanya jika user sedang di bawah
+  if (isScrolledToBottom) {
+    box.scrollTop = box.scrollHeight;
+  }
 }
+
+document.getElementById("orderChatForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!activeChatContext) return;
+  const input = document.getElementById("orderChatInput");
+  const text = input.value.trim();
+  if (!text) return;
+
+  const newMsg = {
+    canteen_id: activeChatContext.canteenId,
+    buyer_username: activeChatContext.buyerUsername,
+    sender_name: currentUser.username,
+    sender_role: currentUser.role,
+    text
+  };
+
+  input.value = "";
+
+  if (supabaseClient) {
+    const { error } = await supabaseClient.from("messages").insert([newMsg]);
+    if (error) {
+      alert("Gagal mengirim chat ke Supabase: " + error.message);
+      return;
+    }
+  }
+
+  await loadOrderChatMessages();
+  const box = document.getElementById("orderChatMessages");
+  box.scrollTop = box.scrollHeight;
+});
 
 // ==========================================
 // 5. RENDERING CATALOG & CART
@@ -485,7 +496,7 @@ function renderKantinStockManager() {
 }
 
 // ==========================================
-// 6. USER UI & MODAL DIPISAH
+// 6. USER UI & MODAL PROFIL
 // ==========================================
 function updateUserUI() {
   const nameEl = document.getElementById("userName");
@@ -514,7 +525,7 @@ function openProfileModal() {
 }
 
 // ==========================================
-// 7. EVENT LISTENERS LENGKAP
+// 7. EVENT LISTENERS
 // ==========================================
 window.handleAddToCart = function(id) {
   const product = products.find(p => p.id === id);
@@ -542,7 +553,6 @@ window.modifyStock = async function(id, delta) {
   if (supabaseClient) {
     try { await supabaseClient.from("products").update({ stock: product.stock }).eq("id", id); } catch(e){}
   }
-  localStorage.setItem(`ekantin_prod_${selectedCanteenId}`, JSON.stringify(products));
   renderProducts();
   renderKantinStockManager();
 };
@@ -553,12 +563,11 @@ function setupEventListeners() {
   document.getElementById("openCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.add("open"));
   document.getElementById("closeCartMobileBtn")?.addEventListener("click", () => cartSidebar.classList.remove("open"));
 
-  // Modal Profil & Login Terpisah
+  // Modal Profil & Login
   document.getElementById("openProfileBtn")?.addEventListener("click", openProfileModal);
   document.getElementById("closeProfileBtn")?.addEventListener("click", () => document.getElementById("profileModal").close());
   document.getElementById("switchUserBtn")?.addEventListener("click", () => document.getElementById("loginModal").showModal());
   document.getElementById("cancelLoginBtn")?.addEventListener("click", () => document.getElementById("loginModal").close());
-  document.getElementById("closeOrderChatBtn")?.addEventListener("click", () => document.getElementById("orderChatModal").close());
 
   // Ganti Kantin
   document.getElementById("canteenSelect")?.addEventListener("change", async (e) => {
@@ -593,37 +602,9 @@ function setupEventListeners() {
     renderProducts();
   });
 
-  // Checkout
+  // Checkout & Refresh Orders
   document.getElementById("checkoutBtn")?.addEventListener("click", handleCheckout);
   document.getElementById("refreshOrdersBtn")?.addEventListener("click", () => loadOrders());
-
-  // Form Chat Pesanan
-  document.getElementById("orderChatForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (!activeChatContext) return;
-    const input = document.getElementById("orderChatInput");
-    const text = input.value.trim();
-    if (!text) return;
-
-    const newMsg = {
-      canteen_id: activeChatContext.canteenId,
-      buyer_username: activeChatContext.buyerUsername,
-      sender_name: currentUser.username,
-      sender_role: currentUser.role,
-      text
-    };
-
-    if (supabaseClient) {
-      try { await supabaseClient.from("messages").insert([newMsg]); } catch(e){}
-    }
-    const key = `chat_${activeChatContext.canteenId}_${activeChatContext.buyerUsername}`;
-    const localMsgs = JSON.parse(localStorage.getItem(key)) || [];
-    localMsgs.push(newMsg);
-    localStorage.setItem(key, JSON.stringify(localMsgs));
-
-    input.value = "";
-    await loadOrderChatMessages();
-  });
 
   // Form Login
   document.getElementById("loginRole")?.addEventListener("change", (e) => {
@@ -741,10 +722,9 @@ function setupEventListeners() {
       const newProduct = { canteen_id: targetCanteenId, name, price, stock, cat, variants, image_url };
 
       if (supabaseClient) {
-        await supabaseClient.from("products").insert([newProduct]);
+        const { error } = await supabaseClient.from("products").insert([newProduct]);
+        if (error) throw new Error(error.message);
       }
-      products.unshift({ ...newProduct, id: Date.now() });
-      localStorage.setItem(`ekantin_prod_${targetCanteenId}`, JSON.stringify(products));
 
       selectedCanteenId = targetCanteenId;
       document.getElementById("canteenSelect").value = targetCanteenId;
@@ -752,6 +732,7 @@ function setupEventListeners() {
       document.querySelectorAll("#categoryChips .chip").forEach((c, idx) => c.classList.toggle("active", idx === 0));
 
       e.target.reset();
+      await loadProducts();
       renderProducts();
       renderKantinStockManager();
       alert(`Menu "${name}" berhasil disimpan!`);
@@ -814,5 +795,4 @@ function switchTab(tabId) {
   if (tabId === "admin") document.getElementById("viewAdmin").classList.add("active");
 }
 
-// Jalankan otomatis
 initApp();
