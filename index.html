@@ -3,113 +3,191 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>E-Kantin — Kelompok 3</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <title>Aplikasi Kantin Realtime</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Remixicon Icon Set -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body>
-  <!-- Header / Navigation -->
-  <header class="navbar">
-    <div class="nav-container">
-      <div class="brand">
-        <span class="brand-badge">🍱</span>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col justify-between font-sans">
+
+  <!-- ================= NAVIGASI / HEADER ================= -->
+  <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black shadow-md shadow-indigo-600/20">
+          <i class="ri-restaurant-2-fill text-lg"></i>
+        </div>
         <div>
-          <h1>E-Kantin</h1>
-          <p class="tagline">Kantin Digital — Kelompok 3</p>
+          <h1 class="font-extrabold text-slate-900 text-sm leading-tight">E-Kantin</h1>
+          <p class="text-[10px] text-slate-400 font-medium">Pesan Menu Lebih Mudah</p>
         </div>
       </div>
 
-      <div class="search-wrap">
-        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <input type="text" id="searchInput" placeholder="Cari makanan atau minuman..." />
-      </div>
+      <div class="flex items-center gap-2">
+        <!-- Badge Peran / Status User -->
+        <span id="role-badge" class="bg-slate-100 text-slate-600 border border-slate-200 text-xs px-3 py-1.5 rounded-xl font-bold">
+          Mode Guest
+        </span>
 
-      <button id="cartToggleBtn" class="cart-trigger" aria-label="Buka Keranjang">
-        <span>🛒 Keranjang</span>
-        <span id="cartCountBadge" class="badge">0</span>
-      </button>
+        <!-- Tombol Trigger Login -->
+        <button id="btn-login-trigger" onclick="openLoginModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl transition shadow-sm active:scale-95">
+          Masuk
+        </button>
+
+        <!-- Tombol Logout -->
+        <button id="btn-logout" onclick="logout()" class="hidden bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs px-3 py-1.5 rounded-xl transition border border-rose-200 active:scale-95 items-center gap-1">
+          <i class="ri-logout-box-r-line"></i>
+          Keluar
+        </button>
+      </div>
     </div>
   </header>
 
-  <!-- Main Content -->
-  <main class="container layout">
-    <section class="menu-section">
-      <!-- Category Filter Pills -->
-      <nav class="categories" id="categoryList">
-        <button class="chip active" data-cat="all">Semua</button>
-        <button class="chip" data-cat="makanan">🍛 Makanan</button>
-        <button class="chip" data-cat="minuman">🧋 Minuman</button>
-        <button class="chip" data-cat="snack">🍟 Cemilan</button>
-      </nav>
+  <!-- ================= KONTEN UTAMA ================= -->
+  <main class="max-w-4xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
 
-      <!-- Products Grid -->
-      <div id="productGrid" class="product-grid"></div>
+    <!-- Tab Pilihan Kantin -->
+    <section>
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">Pilih Kantin</h2>
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <button onclick="filterKantin(1)" class="tab-btn bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap shadow-md shadow-indigo-600/20">
+          Kantin 1
+        </button>
+        <button onclick="filterKantin(2)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">
+          Kantin 2
+        </button>
+        <button onclick="filterKantin(3)" class="tab-btn bg-white border border-slate-200 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition whitespace-nowrap shadow-sm">
+          Kantin 3
+        </button>
+      </div>
     </section>
 
-    <!-- Cart Drawer / Sidebar -->
-    <aside id="cartDrawer" class="cart-panel">
-      <div class="cart-header">
-        <h2>Pesanan Saya</h2>
-        <button id="closeCartBtn" class="btn-ghost" aria-label="Tutup Keranjang">&times;</button>
-      </div>
+    <!-- Ringkasan Keranjang Belanja -->
+    <section id="cart-container"></section>
 
-      <div id="cartItems" class="cart-items">
-        <p class="empty-state">Keranjang masih kosong.</p>
-      </div>
+    <!-- Form Tambah Menu (Hanya Tampil Jika Login Admin / Penjual) -->
+    <section id="add-form-container" class="hidden bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+      <h3 class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+        <i class="ri-add-circle-fill text-indigo-600 text-base"></i>
+        Tambah Menu Baru
+      </h3>
+      <form id="add-form" class="space-y-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Target Kantin</label>
+            <select id="canteen-select" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-indigo-500">
+              <option value="1">Kantin 1</option>
+              <option value="2">Kantin 2</option>
+              <option value="3">Kantin 3</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Nama Makanan/Minuman</label>
+            <input type="text" id="name" required placeholder="Contoh: Nasi Goreng Spesial" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-indigo-500" />
+          </div>
+        </div>
 
-      <div class="cart-summary">
-        <div class="summary-row">
-          <span>Subtotal</span>
-          <span id="subtotalPrice">Rp 0</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Harga (Rp)</label>
+            <input type="number" id="price" required placeholder="15000" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-indigo-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-600 mb-1">Upload Gambar (Lokal)</label>
+            <input type="file" id="image-file" accept="image/*" class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer" />
+          </div>
         </div>
-        <div class="summary-row">
-          <span>Biaya Layanan</span>
-          <span>Gratis</span>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Atau Link URL Gambar (Opsional)</label>
+          <input type="url" id="image-url" placeholder="https://..." class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-indigo-500" />
         </div>
-        <div class="summary-row total">
-          <span>Total Bayar</span>
-          <span id="totalPrice">Rp 0</span>
-        </div>
-        <button id="checkoutBtn" class="btn-primary" disabled>Lanjut Pembayaran</button>
+
+        <button type="submit" id="btn-save-menu" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-indigo-600/20 active:scale-[0.98]">
+          Simpan Menu
+        </button>
+      </form>
+    </section>
+
+    <!-- Grid Daftar Menu Kantin -->
+    <section>
+      <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Daftar Menu</h2>
+      <div id="menu-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+        <!-- Item menu di-render via JavaScript -->
       </div>
-    </aside>
+    </section>
   </main>
 
-  <!-- Checkout / QRIS Modal -->
-  <dialog id="checkoutModal" class="modal">
-    <div class="modal-box">
-      <h3>Konfirmasi Pembayaran QRIS</h3>
-      <p class="modal-desc">Scan QRIS untuk menyelesaikan pesanan Anda.</p>
-      
-      <div class="qris-frame">
-        <div class="qr-mockup">
-          <svg viewBox="0 0 100 100" class="qr-svg">
-            <rect width="100" height="100" fill="#fff" />
-            <path d="M10,10 h30 v30 h-30 z M18,18 h14 v14 h-14 z" fill="#000" />
-            <path d="M60,10 h30 v30 h-30 z M68,18 h14 v14 h-14 z" fill="#000" />
-            <path d="M10,60 h30 v30 h-30 z M18,68 h14 v14 h-14 z" fill="#000" />
-            <rect x="45" y="10" width="8" height="40" fill="#000"/>
-            <rect x="45" y="60" width="18" height="8" fill="#000"/>
-            <rect x="70" y="55" width="20" height="35" fill="#000"/>
-            <rect x="50" y="80" width="10" height="10" fill="#000"/>
-          </svg>
+  <!-- ================= FLOATING ACTION BUTTON (CHAT TRIGGER) ================= -->
+  <button onclick="toggleChatModal()" class="fixed bottom-5 right-5 z-40 bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-full shadow-lg shadow-indigo-600/30 transition active:scale-95 flex items-center justify-center">
+    <i class="ri-chat-3-fill text-xl"></i>
+    <span id="chat-badge" class="hidden absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
+      0
+    </span>
+  </button>
+
+  <!-- ================= MODAL LOGIN ================= -->
+  <div id="login-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-xl space-y-4 relative animate-in fade-in zoom-in duration-200">
+      <button onclick="closeLoginModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+        <i class="ri-close-line text-lg"></i>
+      </button>
+
+      <div>
+        <h3 class="font-bold text-slate-900 text-base">Masuk Akun</h3>
+        <p class="text-xs text-slate-400 mt-0.5">Masuk sebagai Penjual / Admin Kantin</p>
+      </div>
+
+      <form id="login-form" class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Username</label>
+          <input type="text" id="login-email" required placeholder="kantin1 / admin" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-indigo-500" />
         </div>
-        <span class="qris-nominal" id="modalNominal">Rp 0</span>
-      </div>
-
-      <div class="modal-actions">
-        <button id="cancelModalBtn" class="btn-secondary">Batal</button>
-        <button id="confirmPayBtn" class="btn-primary">Sudah Bayar</button>
-      </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-600 mb-1">Password</label>
+          <input type="password" id="login-password" required placeholder="••••••••" class="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium focus:outline-none focus:border-indigo-500" />
+        </div>
+        <button type="submit" id="btn-submit-login" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-indigo-600/20 active:scale-[0.98]">
+          Masuk
+        </button>
+      </form>
     </div>
-  </dialog>
+  </div>
 
-  <!-- Supabase Client CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- ================= MODAL CHAT REALTIME ================= -->
+  <div id="chat-modal" class="hidden fixed bottom-20 right-5 z-40 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl flex-col overflow-hidden max-h-[500px]">
+    <!-- Header Chat -->
+    <div class="bg-indigo-600 text-white px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i class="ri-message-3-line text-base"></i>
+        <h3 id="chat-header-title" class="font-bold text-xs">Chat Kantin 1</h3>
+      </div>
+      <button onclick="toggleChatModal()" class="text-white/80 hover:text-white">
+        <i class="ri-close-line text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Area Pesan Chat -->
+    <div id="chat-messages" class="p-3.5 flex-1 overflow-y-auto space-y-2.5 min-h-[260px] max-h-[340px] bg-slate-50">
+      <!-- Pesan di-render via JavaScript -->
+    </div>
+
+    <!-- Form Input Chat -->
+    <form onsubmit="sendChatMessage(event)" class="p-2 bg-white border-t border-slate-100 flex items-center gap-1.5">
+      <input type="text" id="chat-input" oninput="handleTypingInput()" placeholder="Tulis balasan atau pertanyaan..." class="flex-1 text-xs bg-slate-100 border-0 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-xl transition active:scale-95 flex items-center justify-center">
+        <i class="ri-send-plane-fill text-sm"></i>
+      </button>
+    </form>
+  </div>
+
+  <!-- File JavaScript Eksternal -->
   <script src="script.js"></script>
 </body>
 </html>
