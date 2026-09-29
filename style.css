@@ -25,7 +25,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Header */
+/* Navbar */
 .navbar {
   position: sticky;
   top: 0;
@@ -50,14 +50,17 @@ body {
   align-items: center;
   gap: 0.65rem;
 }
+
 .brand-badge {
   font-size: 1.8rem;
 }
+
 .brand h1 {
   font-size: 1.2rem;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
+
 .tagline {
   font-size: 0.75rem;
   color: var(--muted);
@@ -68,6 +71,7 @@ body {
   flex: 1;
   max-width: 440px;
 }
+
 .search-icon {
   position: absolute;
   left: 0.75rem;
@@ -77,6 +81,7 @@ body {
   height: 1rem;
   color: var(--muted);
 }
+
 .search-wrap input {
   width: 100%;
   padding: 0.55rem 0.85rem 0.55rem 2.2rem;
@@ -88,6 +93,7 @@ body {
   font-size: 0.875rem;
   transition: all 0.2s;
 }
+
 .search-wrap input:focus {
   border-color: var(--primary);
   background: #fff;
@@ -107,9 +113,11 @@ body {
   cursor: pointer;
   transition: all 0.15s;
 }
+
 .cart-trigger:hover {
   border-color: var(--primary);
 }
+
 .badge {
   background: var(--primary);
   color: #fff;
@@ -125,6 +133,7 @@ body {
   margin: 1.5rem auto;
   padding: 0 1.25rem;
 }
+
 .layout {
   display: grid;
   grid-template-columns: 1fr 340px;
@@ -139,6 +148,7 @@ body {
   overflow-x: auto;
   padding-bottom: 0.75rem;
 }
+
 .chip {
   padding: 0.5rem 1rem;
   border: 1px solid var(--border);
@@ -152,6 +162,7 @@ body {
   color: var(--muted);
   transition: all 0.2s;
 }
+
 .chip.active, .chip:hover {
   background: var(--text);
   color: #fff;
@@ -165,6 +176,7 @@ body {
   gap: 1.25rem;
   margin-top: 1rem;
 }
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -175,10 +187,12 @@ body {
   flex-direction: column;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
 .card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.08);
 }
+
 .card-thumb {
   height: 140px;
   display: flex;
@@ -187,12 +201,14 @@ body {
   font-size: 4rem;
   background: #f1f5f9;
 }
+
 .card-body {
   padding: 1rem;
   display: flex;
   flex-direction: column;
   flex: 1;
 }
+
 .card-tag {
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -200,11 +216,13 @@ body {
   font-weight: 700;
   letter-spacing: 0.05em;
 }
+
 .card-title {
   font-size: 1rem;
   font-weight: 700;
   margin: 0.25rem 0 0.5rem;
 }
+
 .card-price {
   font-size: 1rem;
   font-weight: 800;
@@ -226,9 +244,11 @@ body {
   cursor: pointer;
   transition: background 0.15s;
 }
+
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
 }
+
 .btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -244,6 +264,7 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
 .btn-ghost {
   background: none;
   border: none;
@@ -263,6 +284,7 @@ body {
   position: sticky;
   top: 5rem;
 }
+
 .cart-header {
   display: flex;
   justify-content: space-between;
@@ -270,10 +292,12 @@ body {
   border-bottom: 1px solid var(--border);
   padding-bottom: 0.75rem;
 }
+
 .cart-header h2 {
   font-size: 1.1rem;
   font-weight: 700;
 }
+
 .cart-items {
   max-height: 320px;
   overflow-y: auto;
@@ -282,12 +306,14 @@ body {
   flex-direction: column;
   gap: 0.75rem;
 }
+
 .empty-state {
   text-align: center;
   color: var(--muted);
   font-size: 0.875rem;
   padding: 2rem 0;
 }
+
 .cart-item {
   display: flex;
   align-items: center;
@@ -296,11 +322,13 @@ body {
   padding-bottom: 0.5rem;
   border-bottom: 1px dashed var(--border);
 }
+
 .qty-ctrl {
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
+
 .qty-btn {
   width: 24px;
   height: 24px;
@@ -310,6 +338,7 @@ body {
   cursor: pointer;
   font-weight: bold;
 }
+
 .summary-row {
   display: flex;
   justify-content: space-between;
@@ -317,6 +346,7 @@ body {
   color: var(--muted);
   margin-bottom: 0.35rem;
 }
+
 .summary-row.total {
   font-size: 1.05rem;
   font-weight: 800;
@@ -332,10 +362,12 @@ body {
   border: none;
   background: transparent;
 }
+
 .modal::backdrop {
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(4px);
 }
+
 .modal-box {
   background: #fff;
   border-radius: var(--radius);
@@ -344,11 +376,13 @@ body {
   text-align: center;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
+
 .modal-desc {
   font-size: 0.85rem;
   color: var(--muted);
   margin: 0.35rem 0 1rem;
 }
+
 .qris-frame {
   background: #f8fafc;
   padding: 1.25rem;
@@ -356,15 +390,18 @@ body {
   border: 1px dashed var(--border);
   margin-bottom: 1.25rem;
 }
+
 .qr-mockup {
   width: 140px;
   height: 140px;
   margin: 0 auto;
 }
+
 .qr-svg {
   width: 100%;
   height: 100%;
 }
+
 .qris-nominal {
   display: block;
   font-weight: 800;
@@ -372,16 +409,18 @@ body {
   color: var(--primary);
   margin-top: 0.75rem;
 }
+
 .modal-actions {
   display: flex;
   gap: 0.5rem;
 }
 
-/* Responsive */
+/* Mobile Responsive */
 @media (max-width: 860px) {
   .layout {
     grid-template-columns: 1fr;
   }
+
   .cart-panel {
     position: fixed;
     bottom: 0;
@@ -392,6 +431,7 @@ body {
     border-radius: 20px 20px 0 0;
     display: none;
   }
+
   .cart-panel.open {
     display: block;
   }
