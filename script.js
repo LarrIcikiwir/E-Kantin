@@ -3,7 +3,7 @@
 // Ganti dengan Project URL & Anon Key Supabase Anda
 // ==========================================
 const SUPABASE_URL = "https://ymaqspvidhwgzwrxxbfk.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltYXFzcHZpZGh3Z3p3cnh4YmZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA1Njg4NDksImV4cCI6MjEwNjE0NDg0OX0.whwV9t3TL4ajtGpWQbB5SPpVHPBOf63ND3Q3xHskF6g";
+const SUPABASE_ANON_KEY = "sb_publishable_g5dCXGE7no8ogQQH5wg8cA_4OzjyStl";
 
 const isSupabaseConfigured = !SUPABASE_URL.includes("YOUR_PROJECT_ID");
 const supabase = isSupabaseConfigured && window.supabase
