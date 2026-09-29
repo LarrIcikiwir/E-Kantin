@@ -22,14 +22,17 @@
         </div>
       </div>
 
-      <!-- User Profile -->
+      <!-- User Profile & Tombol Pengaturan Terpisah -->
       <div class="user-session" id="userSessionArea">
         <img id="userPfp" class="user-avatar" src="" alt="PFP" />
         <div class="user-meta">
           <strong id="userName">Tamu</strong>
           <span id="userRoleBadge" class="role-badge">Pembeli</span>
         </div>
-        <button id="switchUserBtn" class="btn-sm">Ganti / Edit Akun</button>
+        <div class="user-btn-group">
+          <button id="openProfileBtn" class="btn-sm btn-outline" title="Pengaturan Akun & Profil">⚙️ Profil</button>
+          <button id="switchUserBtn" class="btn-sm" title="Masuk atau Pindah Akun">🚪 Masuk</button>
+        </div>
       </div>
     </div>
   </header>
@@ -108,13 +111,13 @@
       </div>
     </div>
 
-    <!-- ================= VIEW 2: RIWAYAT & PESANAN (DENGAN CHAT TERINTEGRASI) ================= -->
+    <!-- ================= VIEW 2: RIWAYAT & PESANAN (DENGAN CHAT) ================= -->
     <div id="viewOrders" class="view-panel">
       <div class="dash-card max-800">
         <div class="orders-panel-header">
           <div>
             <h3 id="ordersTitle">Riwayat & Daftar Pesanan</h3>
-            <p class="chat-hint" id="ordersSubtitle">Pantau pesanan Anda dan chat langsung dengan penjual/pembeli di sini</p>
+            <p class="chat-hint" id="ordersSubtitle">Pantau pesanan dan obrolan langsung</p>
           </div>
           <button id="refreshOrdersBtn" class="btn-sm">🔄 Segarkan</button>
         </div>
@@ -185,31 +188,36 @@
 
   </main>
 
-  <!-- MODAL CHAT PESANAN (TERINTEGRASI DI PESANAN) -->
-  <dialog id="orderChatModal" class="modal">
-    <div class="modal-box chat-modal-box">
+  <!-- MODAL 1: PENGATURAN AKUN & EDIT PROFIL (DIPISAH) -->
+  <dialog id="profileModal" class="modal">
+    <div class="modal-box">
       <div class="modal-chat-header">
+        <h3>⚙️ Pengaturan Akun</h3>
+        <button id="closeProfileBtn" class="btn-ghost">&times;</button>
+      </div>
+      
+      <div class="profile-preview-area">
+        <img id="profileCurrentPfp" class="profile-large-avatar" src="" alt="Avatar" />
         <div>
-          <h3 id="orderChatModalTitle">💬 Chat Pesanan</h3>
-          <p id="orderChatModalDesc" class="chat-hint">Obrolan langsung seputar pesanan ini</p>
+          <h4 id="profileCurrentName">-</h4>
+          <span id="profileCurrentRole" class="role-badge">-</span>
         </div>
-        <button id="closeOrderChatBtn" class="btn-ghost">&times;</button>
       </div>
 
-      <div id="orderChatMessages" class="chat-messages modal-chat-body"></div>
-
-      <form id="orderChatForm" class="chat-form">
-        <input type="text" id="orderChatInput" placeholder="Ketik pesan..." required />
-        <button type="submit" class="btn-primary">Kirim</button>
+      <form id="updateProfileForm" class="form-stack">
+        <label>Ganti Foto Profil (Upload PFP Baru):
+          <input type="file" id="updatePfpFile" accept="image/*" class="file-input" required />
+        </label>
+        <button type="submit" class="btn-primary" id="btnSaveProfile">Simpan Foto Profil</button>
       </form>
     </div>
   </dialog>
 
-  <!-- Login / Edit Akun Modal -->
+  <!-- MODAL 2: LOGIN / MASUK AKUN (DIPISAH) -->
   <dialog id="loginModal" class="modal">
     <div class="modal-box">
-      <h3>Login / Ganti Profil</h3>
-      <p class="modal-desc">Akun & foto profil baru otomatis tersimpan ke Supabase.</p>
+      <h3>🚪 Masuk Akun</h3>
+      <p class="modal-desc">Pilih peran dan masukkan username serta kode akses.</p>
       
       <form id="loginForm" class="form-stack">
         <label>Peran:
@@ -237,15 +245,30 @@
           </small>
         </label>
 
-        <label>Ganti / Upload Foto Profil (PFP):
-          <input type="file" id="loginPfpFile" accept="image/*" class="file-input" />
-          <small style="color: var(--muted); font-size: 0.7rem;">Pilih foto baru untuk memperbarui profil Anda.</small>
-        </label>
-
         <div class="modal-actions">
           <button type="button" class="btn-secondary" id="cancelLoginBtn">Batal</button>
-          <button type="submit" class="btn-primary">Masuk & Perbarui</button>
+          <button type="submit" class="btn-primary" id="btnLoginSubmit">Masuk</button>
         </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL 3: CHAT PESANAN -->
+  <dialog id="orderChatModal" class="modal">
+    <div class="modal-box chat-modal-box">
+      <div class="modal-chat-header">
+        <div>
+          <h3 id="orderChatModalTitle">💬 Chat Pesanan</h3>
+          <p id="orderChatModalDesc" class="chat-hint">Obrolan seputar pesanan ini</p>
+        </div>
+        <button id="closeOrderChatBtn" class="btn-ghost">&times;</button>
+      </div>
+
+      <div id="orderChatMessages" class="chat-messages modal-chat-body"></div>
+
+      <form id="orderChatForm" class="chat-form">
+        <input type="text" id="orderChatInput" placeholder="Ketik pesan..." required />
+        <button type="submit" class="btn-primary">Kirim</button>
       </form>
     </div>
   </dialog>
