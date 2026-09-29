@@ -38,7 +38,7 @@
   <!-- Main Content -->
   <main class="container layout">
     <section class="menu-section">
-      <!-- Category Chips -->
+      <!-- Category Filter Pills -->
       <nav class="categories" id="categoryList">
         <button class="chip active" data-cat="all">Semua</button>
         <button class="chip" data-cat="makanan">🍛 Makanan</button>
@@ -54,7 +54,7 @@
     <aside id="cartDrawer" class="cart-panel">
       <div class="cart-header">
         <h2>Pesanan Saya</h2>
-        <button id="closeCartBtn" class="btn-ghost" aria-label="Tutup">&times;</button>
+        <button id="closeCartBtn" class="btn-ghost" aria-label="Tutup Keranjang">&times;</button>
       </div>
 
       <div id="cartItems" class="cart-items">
@@ -108,6 +108,8 @@
     </div>
   </dialog>
 
+  <!-- Supabase Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
